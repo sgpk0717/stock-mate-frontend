@@ -37,6 +37,7 @@ VITE_WS_URL=ws://localhost:8007
 Following Toss-style design principles:
 - Clean, minimal interface
 - No gradients or AI-like aesthetics
-- Primary color: #6366F1 (Indigo)
-- Success color: #10B981 (Emerald)
-- Danger color: #EF4444 (Red)
+- Primary color: #4056F4 (Full Spectrum Blue)
+- Secondary color: #E3B23C (Golden Rod)
+- White: #FFFFFF (backgrounds, cards)
+- Rest: Grayscale only
