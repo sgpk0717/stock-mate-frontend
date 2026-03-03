@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -126,3 +127,17 @@
     @apply bg-background text-foreground;
     }
 }
+
+/* 초보자 모드: 용어 툴팁 밑줄 */
+.glossary-term {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: oklch(0.6 0 0 / 0.4);
+  cursor: help;
+}
+
+/* 차트 리사이즈 드래그 중 커서 고정 */
+body.resizing-chart { cursor: ew-resize !important; user-select: none; }
+body.resizing-chart * { cursor: ew-resize !important; }
+body.resizing-chart-corner { cursor: nwse-resize !important; user-select: none; }
+body.resizing-chart-corner * { cursor: nwse-resize !important; }

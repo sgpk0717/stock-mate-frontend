@@ -1,13 +1,35 @@
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
+import AppLayout from "@/components/layout/AppLayout"
+import Dashboard from "@/pages/Dashboard"
+import ChartPage from "@/pages/ChartPage"
+import OrderPage from "@/pages/OrderPage"
+import PositionPage from "@/pages/PositionPage"
+import HistoryPage from "@/pages/HistoryPage"
+import BacktestPage from "@/pages/BacktestPage"
+import TradingPage from "@/pages/TradingPage"
+import AlphaLabPage from "@/pages/AlphaLabPage"
+import SimulationPage from "@/pages/SimulationPage"
+import SettingsPage from "@/pages/SettingsPage"
+
 function App() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <main className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold text-primary">Stock Mate</h1>
-        <p className="text-muted-foreground mt-2">
-          Personal Investment Intelligence Platform
-        </p>
-      </main>
-    </div>
+    <BrowserRouter>
+      <AppLayout>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/chart" element={<ChartPage />} />
+          <Route path="/order" element={<OrderPage />} />
+          <Route path="/positions" element={<PositionPage />} />
+          <Route path="/history" element={<HistoryPage />} />
+          <Route path="/backtest" element={<BacktestPage />} />
+          <Route path="/trading" element={<TradingPage />} />
+          <Route path="/alpha" element={<AlphaLabPage />} />
+          <Route path="/simulation" element={<SimulationPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AppLayout>
+    </BrowserRouter>
   )
 }
 
