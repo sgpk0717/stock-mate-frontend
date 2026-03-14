@@ -71,3 +71,10 @@ export {
   useMcpAudit,
   useUpdateGovernance,
 } from "./use-simulation"
+export {
+  useWorkflowStatus,
+  useWorkflowHistory,
+  useWorkflowEvents,
+  useBestFactors,
+  useTriggerWorkflow,
+} from "./use-workflow"
