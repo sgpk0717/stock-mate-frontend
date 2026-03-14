@@ -1,3 +1,5 @@
+import { Term } from "@/components/ui/term"
+
 interface CausalBadgeProps {
   causalRobust: boolean | null
   effectSize?: number | null
@@ -7,11 +9,8 @@ interface CausalBadgeProps {
 function CausalBadge({ causalRobust, effectSize, pValue }: CausalBadgeProps) {
   if (causalRobust === null || causalRobust === undefined) {
     return (
-      <span
-        className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600"
-        title="인과 검증이 아직 수행되지 않았습니다"
-      >
-        미검증
+      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+        <Term>미검증</Term>
       </span>
     )
   }
@@ -30,7 +29,7 @@ function CausalBadge({ causalRobust, effectSize, pValue }: CausalBadgeProps) {
         className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
         title={tooltip}
       >
-        검증됨
+        <Term k="인과 검증">검증됨</Term>
       </span>
     )
   }
@@ -48,7 +47,7 @@ function CausalBadge({ causalRobust, effectSize, pValue }: CausalBadgeProps) {
       className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700"
       title={tooltip}
     >
-      미라지
+      <Term k="신기루">미라지</Term>
     </span>
   )
 }

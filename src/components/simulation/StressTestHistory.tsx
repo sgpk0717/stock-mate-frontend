@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Term } from "@/components/ui/term"
 import { useStressTests, useDeleteStressTest } from "@/hooks/queries"
 import { cn } from "@/lib/utils"
 import type { StressTestRunSummary } from "@/types/simulation"
@@ -25,7 +26,7 @@ const SCENARIO_LABELS: Record<string, string> = {
   liquidity_crisis: "유동성 위기",
   flash_crash: "플래시 크래시",
   supply_chain: "공급망 충격",
-  custom: "커스텀",
+  custom: "AI 커스텀",
 }
 
 function HistoryItem({

@@ -4,6 +4,7 @@ import { useAlphaMiningLogs } from "@/hooks/queries/use-alpha"
 import { useAlphaMiningStream } from "@/hooks/use-websocket"
 import AlphaMiningLog from "@/components/alpha/AlphaMiningLog"
 import AlphaFailureAnalysis from "@/components/alpha/AlphaFailureAnalysis"
+import { Term } from "@/components/ui/term"
 
 interface AlphaMineProgressProps {
   run: AlphaMiningRun | null
@@ -94,7 +95,7 @@ function AlphaMineProgress({ run }: AlphaMineProgressProps) {
 
         {isCompleted && (
           <p className="mt-1 text-xs text-muted-foreground">
-            {run.factors_found}개 팩터 발견 / {run.total_evaluated}개 평가
+            {run.factors_found}개 <Term>팩터</Term> 발견 / {run.total_evaluated}개 평가
           </p>
         )}
 

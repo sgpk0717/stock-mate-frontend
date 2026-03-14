@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { Term } from "@/components/ui/term"
 
 interface AnalysisResult {
   type: "technical" | "risk"
@@ -41,7 +42,7 @@ function AgentAnalysis({ results }: AgentAnalysisProps) {
             <CardTitle className="flex items-center gap-2 text-sm font-medium">
               {result.type === "technical" ? (
                 <>
-                  기술적 분석
+                  <Term>기술적 분석</Term>
                   {result.signal && (
                     <span
                       className={cn(
@@ -55,7 +56,7 @@ function AgentAnalysis({ results }: AgentAnalysisProps) {
                 </>
               ) : (
                 <>
-                  리스크 평가
+                  <Term>리스크 평가</Term>
                   {result.risk_level && (
                     <span
                       className={cn(

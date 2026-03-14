@@ -7,6 +7,7 @@ import StressMetrics from "@/components/simulation/StressMetrics"
 import StressTestHistory from "@/components/simulation/StressTestHistory"
 import McpDashboard from "@/components/simulation/McpDashboard"
 import { cn } from "@/lib/utils"
+import { Term } from "@/components/ui/term"
 import {
   useStartStressTest,
   useStressTest,
@@ -44,10 +45,10 @@ function SimulationPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-bold">시뮬레이션</h1>
+      <h1 className="text-lg font-bold"><Term>시뮬레이션</Term></h1>
 
       {/* 탭 */}
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 border-b" data-tour="sim-tabs">
         <button
           onClick={() => setActiveTab("stress")}
           className={cn(
@@ -57,7 +58,7 @@ function SimulationPage() {
               : "text-muted-foreground hover:text-foreground",
           )}
         >
-          스트레스 테스트
+          <Term>스트레스 테스트</Term>
         </button>
         <button
           onClick={() => setActiveTab("mcp")}
@@ -68,7 +69,7 @@ function SimulationPage() {
               : "text-muted-foreground hover:text-foreground",
           )}
         >
-          MCP 대시보드
+          <Term>MCP</Term> 대시보드
         </button>
       </div>
 
@@ -77,7 +78,9 @@ function SimulationPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
           {/* 왼쪽: 설정 + 결과 */}
           <div className="space-y-6">
-            <StressTestConfig onStart={handleStart} isRunning={isRunning} />
+            <div data-tour="sim-scenario">
+              <StressTestConfig onStart={handleStart} isRunning={isRunning} />
+            </div>
 
             {/* 진행률 */}
             <StressTestProgress
@@ -95,16 +98,16 @@ function SimulationPage() {
 
             {/* 결과 */}
             {activeRun?.status === "COMPLETED" && (
-              <>
+              <div data-tour="sim-metrics" className="space-y-6">
                 <StressMetrics metrics={activeRun.metrics} />
                 <PriceChart results={activeRun.results} />
                 <LOBVisualization results={activeRun.results} />
-              </>
+              </div>
             )}
           </div>
 
           {/* 오른쪽: 실행 기록 */}
-          <div>
+          <div data-tour="sim-history">
             <StressTestHistory
               selectedRunId={activeRunId}
               onSelectRun={handleSelectRun}

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 import { createChart, type IChartApi, HistogramSeries } from "lightweight-charts"
 import type { NewsSentimentDaily } from "@/types/news"
+import { Term } from "@/components/ui/term"
 
 interface NewsSentimentChartProps {
   data: NewsSentimentDaily[]
@@ -66,7 +67,7 @@ function NewsSentimentChart({ data, height = 120 }: NewsSentimentChartProps) {
   return (
     <div>
       <p className="mb-1 text-xs font-medium text-muted-foreground">
-        이벤트 스코어 추이
+        <Term>이벤트 스코어</Term> 추이
       </p>
       <div ref={containerRef} />
     </div>

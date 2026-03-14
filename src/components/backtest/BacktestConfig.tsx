@@ -76,7 +76,7 @@ function BacktestConfig({
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   return (
-    <Card>
+    <Card data-tour="bt-config">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium">실행 설정</CardTitle>
       </CardHeader>
@@ -187,6 +187,7 @@ function BacktestConfig({
           type="button"
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
           onClick={() => setShowAdvanced(!showAdvanced)}
+          data-tour="bt-advanced"
         >
           <span className="text-[10px]">{showAdvanced ? "\u25BE" : "\u25B8"}</span>
           고급 설정
@@ -367,6 +368,7 @@ function BacktestConfig({
           className="w-full"
           onClick={onRun}
           disabled={!strategy || isRunning}
+          data-tour="bt-run"
         >
           {isRunning ? "실행 중..." : <><Term>백테스트</Term> 실행</>}
         </Button>

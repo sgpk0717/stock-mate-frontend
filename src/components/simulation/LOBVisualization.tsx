@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Term } from "@/components/ui/term"
 import type { StressTestResults } from "@/types/simulation"
 
 interface LOBVisualizationProps {
@@ -26,7 +27,7 @@ function LOBVisualization({ results }: LOBVisualizationProps) {
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium">호가 깊이</CardTitle>
+          <CardTitle className="text-sm font-medium"><Term>호가 깊이</Term></CardTitle>
           <span className="text-xs text-muted-foreground">
             스냅샷 {stepIdx + 1} / {maxIdx + 1}
           </span>

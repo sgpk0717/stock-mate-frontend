@@ -1,5 +1,6 @@
 import { useMemo } from "react"
 import type { AlphaFactor } from "@/types/alpha"
+import { Term } from "@/components/ui/term"
 
 interface FactorLineageTreeProps {
   factors: AlphaFactor[]
@@ -65,7 +66,7 @@ function FactorLineageTree({ factors, onSelect }: FactorLineageTreeProps) {
   if (factors.length === 0) {
     return (
       <div className="flex h-40 items-center justify-center text-sm text-gray-400">
-        계보를 표시할 팩터가 없습니다
+        <Term>계보</Term>를 표시할 <Term>팩터</Term>가 없습니다
       </div>
     )
   }

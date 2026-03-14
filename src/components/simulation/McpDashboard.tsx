@@ -5,13 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Term } from "@/components/ui/term"
 import {
   useMcpStatus,
   useMcpTools,
   useMcpAudit,
   useUpdateGovernance,
 } from "@/hooks/queries"
-import { cn } from "@/lib/utils"
 import type { GovernanceRules, McpAuditLog } from "@/types/simulation"
 
 const AUDIT_STATUS_MAP: Record<
@@ -51,7 +51,7 @@ function McpDashboard() {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-medium">MCP 서버 상태</CardTitle>
+            <CardTitle className="text-sm font-medium"><Term>MCP</Term> 서버 상태</CardTitle>
             {statusLoading ? (
               <Skeleton className="h-5 w-16" />
             ) : (
@@ -65,7 +65,7 @@ function McpDashboard() {
           {status && (
             <div className="space-y-1 text-xs text-muted-foreground">
               <p>SSE 포트: {status.sse_port}</p>
-              <p>거버넌스: {status.governance.enabled ? "활성" : "비활성"}</p>
+              <p><Term>거버넌스</Term>: {status.governance.enabled ? "활성" : "비활성"}</p>
             </div>
           )}
         </CardContent>
@@ -75,7 +75,7 @@ function McpDashboard() {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-medium">거버넌스 규칙</CardTitle>
+            <CardTitle className="text-sm font-medium"><Term>거버넌스</Term> 규칙</CardTitle>
             {!editingGov ? (
               <Button size="sm" variant="outline" onClick={handleEditStart}>
                 편집
@@ -212,7 +212,7 @@ function McpDashboard() {
       {/* 감사 로그 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">감사 로그</CardTitle>
+          <CardTitle className="text-sm font-medium"><Term>감사 로그</Term></CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">

@@ -1,5 +1,6 @@
 import { useRef, useEffect } from "react"
 import type { CorrelationMatrix } from "@/types/alpha"
+import { Term } from "@/components/ui/term"
 
 interface FactorCorrelationHeatmapProps {
   data: CorrelationMatrix
@@ -86,7 +87,7 @@ function FactorCorrelationHeatmap({ data }: FactorCorrelationHeatmapProps) {
   if (n === 0) {
     return (
       <div className="flex h-40 items-center justify-center text-sm text-gray-400">
-        상관행렬을 계산할 팩터를 선택하세요
+        <Term>상관행렬</Term>을 계산할 <Term>팩터</Term>를 선택하세요
       </div>
     )
   }

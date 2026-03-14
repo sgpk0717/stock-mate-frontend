@@ -10,6 +10,7 @@ import {
   type Time,
 } from "lightweight-charts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Term } from "@/components/ui/term"
 import type { BacktestTrade } from "@/types"
 
 interface BacktestEquityCurveProps {
@@ -177,7 +178,7 @@ function BacktestEquityCurve({ equityCurve, trades }: BacktestEquityCurveProps) 
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">Equity Curve</CardTitle>
+        <CardTitle className="text-sm font-medium"><Term>Equity Curve</Term></CardTitle>
       </CardHeader>
       <CardContent>
         <div ref={containerRef} />

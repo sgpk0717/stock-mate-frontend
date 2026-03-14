@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Term } from "@/components/ui/term"
 import { useScenarios, useGenerateScenario } from "@/hooks/queries"
 import type {
   AgentConfig,
@@ -83,7 +84,7 @@ function StressTestConfig({ onStart, isRunning }: StressTestConfigProps) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium">스트레스 테스트 설정</CardTitle>
+        <CardTitle className="text-sm font-medium"><Term>스트레스 테스트</Term> 설정</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* 테스트 이름 */}
@@ -121,7 +122,7 @@ function StressTestConfig({ onStart, isRunning }: StressTestConfigProps) {
         </div>
 
         {/* 커스텀 시나리오 생성 */}
-        <div className="space-y-1.5">
+        <div className="space-y-1.5" data-tour="sim-custom">
           <Label className="text-xs">커스텀 시나리오 (AI 생성)</Label>
           <div className="flex gap-2">
             <Input
@@ -164,6 +165,7 @@ function StressTestConfig({ onStart, isRunning }: StressTestConfigProps) {
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
           className="text-xs text-muted-foreground hover:text-foreground"
+          data-tour="sim-advanced"
         >
           {showAdvanced ? "- 고급 설정 닫기" : "+ 고급 설정"}
         </button>
@@ -174,7 +176,7 @@ function StressTestConfig({ onStart, isRunning }: StressTestConfigProps) {
             <p className="text-xs font-medium">에이전트 구성</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label className="text-[10px]">펀더멘탈</Label>
+                <Label className="text-[10px]"><Term>펀더멘탈</Term></Label>
                 <Input
                   type="number"
                   value={agentConfig.fundamental_count}
@@ -188,7 +190,7 @@ function StressTestConfig({ onStart, isRunning }: StressTestConfigProps) {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px]">차티스트</Label>
+                <Label className="text-[10px]"><Term>차티스트</Term></Label>
                 <Input
                   type="number"
                   value={agentConfig.chartist_count}
@@ -202,7 +204,7 @@ function StressTestConfig({ onStart, isRunning }: StressTestConfigProps) {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px]">노이즈</Label>
+                <Label className="text-[10px]"><Term>노이즈</Term></Label>
                 <Input
                   type="number"
                   value={agentConfig.noise_count}
@@ -249,7 +251,7 @@ function StressTestConfig({ onStart, isRunning }: StressTestConfigProps) {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px]">틱 사이즈</Label>
+                <Label className="text-[10px]"><Term k="틱">틱</Term> 사이즈</Label>
                 <Input
                   type="number"
                   value={exchangeConfig.tick_size}
@@ -296,7 +298,7 @@ function StressTestConfig({ onStart, isRunning }: StressTestConfigProps) {
         )}
 
         {/* 실행 버튼 */}
-        <Button onClick={handleStart} disabled={isRunning} className="w-full">
+        <Button onClick={handleStart} disabled={isRunning} className="w-full" data-tour="sim-run">
           {isRunning ? "실행 중..." : "스트레스 테스트 시작"}
         </Button>
       </CardContent>

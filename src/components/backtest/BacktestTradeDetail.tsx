@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { Term } from "@/components/ui/term"
 import type { BacktestTrade, TradeConditionResult } from "@/types"
 
 interface BacktestTradeDetailProps {
@@ -36,6 +37,16 @@ const INDICATOR_LABELS: Record<string, string> = {
   bb_middle: "BB 중단",
   golden_cross: "골든크로스",
   dead_cross: "데드크로스",
+  // 팩터 백테스트 스냅샷
+  factor_rank: "팩터 랭크",
+  factor_rank_pct: "팩터 상위(%)",
+  rank_position: "랭크 순위",
+  total_candidates: "전체 종목 수",
+  target_count: "매수 대상 수",
+  factor_value: "팩터 값",
+  max_gain_pct: "보유 중 최고(%)",
+  max_loss_pct: "보유 중 최저(%)",
+  exit_price_close: "퇴출 시 종가",
 }
 
 function getLabel(key: string): string {
@@ -114,7 +125,7 @@ function BacktestTradeDetail({
               />
               {trade.conviction != null && trade.conviction > 0 && (
                 <Row
-                  label="확신도"
+                  label={<><Term>확신도</Term></>}
                   value={trade.conviction.toFixed(2)}
                 />
               )}
@@ -192,7 +203,7 @@ function Row({
   value,
   className,
 }: {
-  label: string
+  label: React.ReactNode
   value: string
   className?: string
 }) {

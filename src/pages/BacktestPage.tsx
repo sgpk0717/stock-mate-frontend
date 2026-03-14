@@ -161,7 +161,7 @@ function BacktestPage() {
           {/* 결과 요약 */}
           {activeRun?.status === "COMPLETED" && (
             <>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between" data-tour="bt-summary">
                 <BacktestSummaryCards metrics={activeRun.metrics} />
               </div>
               <div className="flex justify-end gap-2">
@@ -200,17 +200,19 @@ function BacktestPage() {
                   <Term>실거래 전환</Term>
                 </Button>
               </div>
-              <BacktestEquityCurve
-                equityCurve={activeRun.equity_curve}
-                trades={activeRun.trades_summary}
-              />
+              <div data-tour="bt-equity">
+                <BacktestEquityCurve
+                  equityCurve={activeRun.equity_curve}
+                  trades={activeRun.trades_summary}
+                />
+              </div>
               <BacktestTradeTable trades={activeRun.trades_summary} />
             </>
           )}
         </div>
 
         {/* 오른쪽: 실행 기록 */}
-        <div>
+        <div data-tour="bt-history">
           <BacktestHistory
             selectedRunId={activeRunId}
             onSelectRun={handleSelectRun}

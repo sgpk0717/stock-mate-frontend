@@ -51,7 +51,7 @@ function StrategyChat({ onStrategyReady }: StrategyChatProps) {
 
   const { data: presets } = useStrategies()
   const createSessionMutation = useCreateSession()
-  const sendMessageMutation = useSendMessage(sessionId)
+  useSendMessage(sessionId)
   const finalizeMutation = useFinalizeStrategy(sessionId)
 
   // 자동 스크롤
@@ -167,7 +167,7 @@ function StrategyChat({ onStrategyReady }: StrategyChatProps) {
     messages.length > 0 ? messages : [WELCOME_MESSAGE]
 
   return (
-    <Card className="flex flex-col">
+    <Card className="flex flex-col" data-tour="bt-strategy-chat">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium">전략 설정</CardTitle>

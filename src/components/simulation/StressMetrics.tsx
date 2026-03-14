@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { Term } from "@/components/ui/term"
 import type { StressTestMetrics } from "@/types/simulation"
 
 interface StressMetricsProps {
@@ -12,7 +13,7 @@ function MetricCard({
   suffix,
   highlight,
 }: {
-  title: string
+  title: React.ReactNode
   value: string
   suffix?: string
   highlight?: "positive" | "negative" | "neutral"
@@ -55,19 +56,19 @@ function StressMetrics({ metrics }: StressMetricsProps) {
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
-          title="전략 손익"
+          title={<><Term k="손익">전략 손익</Term></>}
           value={`${pnl > 0 ? "+" : ""}${pnl.toFixed(2)}`}
           suffix="%"
           highlight={pnl >= 0 ? "positive" : "negative"}
         />
         <MetricCard
-          title="MDD (최대 낙폭)"
+          title={<><Term>MDD</Term> (최대 낙폭)</>}
           value={mdd.toFixed(2)}
           suffix="%"
           highlight="negative"
         />
         <MetricCard
-          title="충격 깊이"
+          title={<Term>충격 깊이</Term>}
           value={crashDepth.toFixed(2)}
           suffix="%"
           highlight="negative"
@@ -92,13 +93,13 @@ function StressMetrics({ metrics }: StressMetricsProps) {
           highlight={metrics.price_change_pct >= 0 ? "positive" : "negative"}
         />
         <MetricCard
-          title="연환산 변동성"
+          title={<Term>연환산 변동성</Term>}
           value={metrics.annualized_volatility.toFixed(2)}
           suffix="%"
           highlight="neutral"
         />
         <MetricCard
-          title="평균 스프레드"
+          title={<>평균 <Term>스프레드</Term></>}
           value={metrics.avg_spread.toFixed(1)}
           highlight="neutral"
         />

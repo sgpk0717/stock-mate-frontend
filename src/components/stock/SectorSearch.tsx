@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Term } from "@/components/ui/term"
 import { useSectorSearch } from "@/hooks/queries/use-sector"
 import { cn } from "@/lib/utils"
 
@@ -29,7 +30,7 @@ function SectorSearch({ onSelectSymbol }: SectorSearchProps) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium">섹터 검색</CardTitle>
+        <CardTitle className="text-sm font-medium"><Term>섹터</Term> 검색</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex gap-2">
@@ -74,7 +75,7 @@ function SectorSearch({ onSelectSymbol }: SectorSearchProps) {
                   )}
                 </div>
                 <span className="ml-2 shrink-0 text-xs tabular-nums text-primary">
-                  {(r.similarity * 100).toFixed(0)}%
+                  <Term>유사도</Term> {(r.similarity * 100).toFixed(0)}%
                 </span>
               </button>
             ))}

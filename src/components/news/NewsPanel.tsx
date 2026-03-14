@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useNewsArticles, useNewsSentiment, useCollectNews } from "@/hooks/queries/use-news"
+import { Term } from "@/components/ui/term"
 import SentimentBadge from "./SentimentBadge"
 import NewsSentimentChart from "./NewsSentimentChart"
 
@@ -38,7 +39,7 @@ function NewsPanel({ symbol }: NewsPanelProps) {
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium">뉴스 감성</CardTitle>
+          <CardTitle className="text-sm font-medium"><Term>뉴스 감성</Term></CardTitle>
           <Button
             variant="outline"
             size="sm"
