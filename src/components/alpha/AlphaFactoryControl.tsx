@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,8 +20,8 @@ import {
   useFactoryStatus,
   useUniverses,
 } from "@/hooks/queries/use-alpha"
+import { useWorkflowStatus, useTriggerWorkflow } from "@/hooks/queries/use-workflow"
 import { useAlphaFactoryStream } from "@/hooks/use-websocket"
-import AlphaMiningLog from "@/components/alpha/AlphaMiningLog"
 import type { AlphaFactoryStatus, IterationLog, MiningLogSummary } from "@/types/alpha"
 
 function ElapsedTime({ startedAt }: { startedAt: string }) {
@@ -79,10 +79,7 @@ function FactoryRunningDashboard({ status }: { status: AlphaFactoryStatus }) {
           <div className="flex justify-between">
             <span className="text-muted-foreground">옵션</span>
             <span className="font-medium">
-              {config.enable_crossover ? "교차" : ""}
-              {config.enable_crossover && config.enable_causal ? " + " : ""}
-              {config.enable_causal ? "인과검증" : ""}
-              {!config.enable_crossover && !config.enable_causal ? "—" : ""}
+              {config.enable_crossover ? "교차" : "—"}
             </span>
           </div>
         </div>
@@ -242,17 +239,143 @@ function OperatorStats({ stats }: { stats: Record<string, unknown> }) {
   )
 }
 
+function DiscoveredInCycle({ iterations }: { iterations: IterationLog[] }) {
+  const discovered = iterations
+    .filter((it) => it.discovered_factor_name !== null)
+    .map((it) => {
+      const successAttempt = it.attempts.find((a) => a.outcome === "discovered")
+      return {
+        name: it.discovered_factor_name!,
+        hypothesis: it.hypothesis,
+        expression: successAttempt?.expression_str ?? "",
+        ic: successAttempt?.ic_mean ?? null,
+      }
+    })
+
+  return (
+    <div className="rounded-lg border p-3 space-y-2">
+      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        이번 사이클 발견 팩터
+      </h4>
+      {discovered.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-2 text-center">
+          아직 발견된 팩터가 없습니다
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {discovered.map((d, i) => (
+            <div
+              key={i}
+              className="flex items-start gap-2 rounded-md bg-green-50 border border-green-200 p-2"
+            >
+              <span className="shrink-0 text-green-600 text-xs font-bold mt-0.5">
+                #{i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium truncate">{d.name}</p>
+                <p className="text-[10px] text-muted-foreground font-mono truncate">
+                  {d.expression}
+                </p>
+                <div className="flex gap-3 mt-0.5">
+                  {d.ic !== null && (
+                    <span className="text-[10px] text-green-700">
+                      IC {d.ic.toFixed(4)}
+                    </span>
+                  )}
+                  <span className="text-[10px] text-muted-foreground truncate">
+                    {d.hypothesis}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface ActivityEntry {
+  id: number
+  time: string
+  type: "progress" | "eval" | "discovered" | "generation" | "info"
+  message: string
+  detail?: string
+}
+
+let _activityId = 0
+
+function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [entries.length])
+
+  if (entries.length === 0) {
+    return (
+      <div className="rounded-lg border p-3">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+          실시간 탐색 현황
+        </h4>
+        <p className="text-xs text-muted-foreground text-center py-4">
+          데이터 로드 중... 잠시 후 탐색 현황이 표시됩니다
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border p-3">
+      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+        실시간 탐색 현황 ({entries.length})
+      </h4>
+      <div
+        ref={scrollRef}
+        className="max-h-80 overflow-y-auto space-y-1"
+      >
+        {entries.map((e) => (
+          <div key={e.id} className="flex gap-2 text-[11px] leading-relaxed">
+            <span className="shrink-0 text-muted-foreground w-12">{e.time}</span>
+            <span className={
+              e.type === "discovered" ? "text-green-600 font-semibold" :
+              e.type === "eval" ? "text-blue-600" :
+              e.type === "generation" ? "font-medium" :
+              "text-muted-foreground"
+            }>
+              {e.type === "discovered" && "\u2705 "}
+              {e.type === "eval" && "\U0001f52c "}
+              {e.message}
+            </span>
+            {e.detail && (
+              <span className="text-muted-foreground font-mono truncate">
+                {e.detail}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function AlphaFactoryControl() {
   const queryClient = useQueryClient()
   const { data: status } = useFactoryStatus()
   const { data: universes } = useUniverses()
   const startFactory = useStartFactory()
   const stopFactory = useStopFactory()
+  const { data: wfStatus } = useWorkflowStatus()
+  const triggerWorkflow = useTriggerWorkflow()
 
   // 사이클 로그 (WS 스트리밍)
   const [cycleIterations, setCycleIterations] = useState<IterationLog[]>([])
   const [cycleSummary, setCycleSummary] = useState<MiningLogSummary | null>(null)
-  const [showCycleLog, setShowCycleLog] = useState(false)
+
+  // 활동 로그 (실시간 피드)
+  const [activityLog, setActivityLog] = useState<ActivityEntry[]>([])
 
   const [context, setContext] = useState("")
   const [universe, setUniverse] = useState("KOSPI200")
@@ -263,20 +386,112 @@ function AlphaFactoryControl() {
   const [icThreshold, setIcThreshold] = useState(0.03)
   const [orthogonalityThreshold, setOrthogonalityThreshold] = useState(0.7)
   const [crossover, setCrossover] = useState(true)
-  const [causal, setCausal] = useState(false)
   const [maxCycles, setMaxCycles] = useState<string>("")
 
   const isRunning = status?.running ?? false
 
-  // WS 스트리밍: iteration 이벤트 수신
+  const addActivity = useCallback((type: ActivityEntry["type"], message: string, detail?: string) => {
+    const now = new Date()
+    const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
+    setActivityLog((prev) => [
+      ...prev.slice(-200),  // 최대 200개 유지
+      { id: ++_activityId, time, type, message, detail },
+    ])
+  }, [])
+
+  // WS 스트리밍: 이벤트 수신
   const handleFactoryEvent = useCallback(
     (event: Record<string, unknown>) => {
       const type = event.type as string
 
       if (type === "cycle_start") {
-        // 새 사이클 시작 → 이전 로그 초기화
         setCycleIterations([])
         setCycleSummary(null)
+        setActivityLog([])
+        addActivity("info", `사이클 ${event.cycle ?? ""} 시작`)
+      }
+
+      if (type === "progress") {
+        const msg = event.message as string
+        if (msg) addActivity("progress", msg)
+      }
+
+      if (type === "candidates_ready") {
+        const total = event.total as number
+        const samples = event.samples as { expression: string; operator: string }[]
+        const opBreakdown = event.operator_breakdown as Record<string, number>
+
+        // 연산자별 분포 요약
+        const opSummary = Object.entries(opBreakdown ?? {})
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 4)
+          .map(([op, cnt]) => `${op.replace(/_/g, " ")} ${cnt}`)
+          .join(", ")
+        if (opSummary) {
+          addActivity("info", `연산자 분포: ${opSummary}`)
+        }
+
+        // 실제 수식 샘플 표시
+        addActivity("eval", `${total}개 후보 수식 생성 완료, 평가 시작:`)
+        for (const s of samples) {
+          addActivity("eval", `  [${s.operator}]`, s.expression)
+        }
+      }
+
+      if (type === "eval_complete") {
+        const total = event.total_evaluated as number
+        const icPass = event.ic_pass_count as number
+        const cpcv = event.cpcv_candidates as number
+        const disc = event.discovered_count as number
+        const thr = event.ic_threshold as number
+
+        addActivity("eval",
+          `${total}개 수식 평가 → IC(>${thr}) 통과 ${icPass}개 → CPCV 후보 ${cpcv}개`,
+        )
+
+        // IC 통과 상위 샘플 표시
+        const topSamples = event.top_samples as { expression: string; ic: number; sharpe: number }[]
+        if (topSamples?.length) {
+          for (const s of topSamples.slice(0, 3)) {
+            addActivity("eval",
+              `  IC ${s.ic.toFixed(4)} / Sharpe ${s.sharpe.toFixed(1)}`,
+              s.expression,
+            )
+          }
+        }
+
+        // 발견 팩터 표시
+        const discovered = event.discovered as { name: string; expression: string; ic: number; sharpe: number }[]
+        if (discovered?.length) {
+          for (const d of discovered) {
+            addActivity("discovered",
+              `팩터 발견: ${d.name} (IC ${d.ic.toFixed(4)}, Sharpe ${d.sharpe.toFixed(1)})`,
+              d.expression,
+            )
+          }
+        }
+
+        // IC 미달 샘플
+        const failSamples = event.fail_samples as { expression: string; ic: number }[]
+        if (failSamples?.length) {
+          addActivity("progress",
+            `IC 미달 예시: ${failSamples.map(f => `${f.ic.toFixed(4)}`).join(", ")}`,
+          )
+        }
+      }
+
+      if (type === "generation_start") {
+        const gen = event.generation as number
+        const pop = event.population_size as number
+        addActivity("generation", `세대 ${gen} 시작 (모집단 ${pop}개)`)
+      }
+
+      if (type === "generation_complete") {
+        const gen = event.generation as number
+        const disc = event.new_discovered as number
+        addActivity("generation",
+          `세대 ${gen} 완료: ${disc}개 팩터 발견`,
+        )
       }
 
       if (type === "iteration_complete") {
@@ -293,21 +508,21 @@ function AlphaFactoryControl() {
         setCycleSummary(event as unknown as MiningLogSummary)
       }
 
-      if (type === "cycle_complete" || type === "generation_complete") {
-        // 사이클/세대 완료 → 상태 + 팩터 목록 갱신
+      if (type === "generation_start" || type === "cycle_complete" || type === "generation_complete") {
         queryClient.invalidateQueries({ queryKey: ["alpha-factory-status"] })
         if (type === "cycle_complete") {
           queryClient.invalidateQueries({ queryKey: ["alpha-factors"] })
+          addActivity("info", `사이클 완료: ${event.factors_found ?? 0}개 팩터 발견`)
         }
       }
 
       if (type === "factory_stopped") {
-        // 팩토리 중지 → 즉시 상태 갱신 (가동 중 → 중지)
         queryClient.invalidateQueries({ queryKey: ["alpha-factory-status"] })
         queryClient.invalidateQueries({ queryKey: ["alpha-factors"] })
+        addActivity("info", "팩토리 중지")
       }
     },
-    [queryClient],
+    [queryClient, addActivity],
   )
 
   useAlphaFactoryStream(isRunning, handleFactoryEvent)
@@ -327,14 +542,48 @@ function AlphaFactoryControl() {
       ic_threshold: icThreshold,
       orthogonality_threshold: orthogonalityThreshold,
       enable_crossover: crossover,
-      enable_causal: causal,
       max_cycles: parsedMaxCycles && parsedMaxCycles > 0 ? parsedMaxCycles : undefined,
       data_interval: dataInterval,
     })
   }
 
+  const wfPhase = wfStatus?.phase ?? ""
+  const isEmergencyStopped = wfPhase === "EMERGENCY_STOP"
+  const wfActive = !!wfStatus && !isEmergencyStopped
+
+  const handleWorkflowToggle = (checked: boolean) => {
+    if (checked) {
+      triggerWorkflow.mutate("resume")
+    } else {
+      triggerWorkflow.mutate("emergency_stop")
+    }
+  }
+
   return (
     <div className="space-y-4">
+      {/* 워크플로우 자동화 토글 */}
+      <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium">자동 워크플로우</span>
+          <Badge
+            variant={isEmergencyStopped ? "destructive" : "outline"}
+            className="text-[10px]"
+          >
+            {wfPhase || "OFF"}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-muted-foreground">
+            {wfActive ? "watchdog 활성" : "watchdog 비활성"}
+          </span>
+          <Switch
+            checked={wfActive}
+            onCheckedChange={handleWorkflowToggle}
+            disabled={triggerWorkflow.isPending}
+          />
+        </div>
+      </div>
+
       {/* 헤더 + 시작/중지 버튼 */}
       <div className="flex items-center justify-between rounded-lg border p-4">
         <div className="flex items-center gap-2">
@@ -368,25 +617,14 @@ function AlphaFactoryControl() {
       {/* 가동 중: 대시보드 */}
       {isRunning && status && <FactoryRunningDashboard status={status} />}
 
-      {/* 사이클 로그 (가동 중) */}
-      {isRunning && cycleIterations.length > 0 && (
-        <div className="space-y-2">
-          <button
-            onClick={() => setShowCycleLog((v) => !v)}
-            className="text-xs text-muted-foreground underline hover:text-foreground"
-          >
-            {showCycleLog
-              ? "사이클 로그 닫기"
-              : `사이클 로그 보기 (${cycleIterations.length}회 반복)`}
-          </button>
-          {showCycleLog && (
-            <AlphaMiningLog
-              iterations={cycleIterations}
-              summary={cycleSummary}
-              icThreshold={icThreshold}
-            />
-          )}
-        </div>
+      {/* 가동 중: 이번 사이클 발견 팩터 */}
+      {isRunning && (
+        <DiscoveredInCycle iterations={cycleIterations} />
+      )}
+
+      {/* 가동 중: 실시간 활동 피드 */}
+      {isRunning && (
+        <ActivityFeed entries={activityLog} />
       )}
 
       {/* 설정 폼 (중지 상태에서만 편집 가능) */}
@@ -535,10 +773,6 @@ function AlphaFactoryControl() {
             <div className="flex items-center gap-2">
               <Switch checked={crossover} onCheckedChange={setCrossover} />
               <Label className="text-xs">유전 교차</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={causal} onCheckedChange={setCausal} />
-              <Label className="text-xs"><Term>인과 검증</Term></Label>
             </div>
           </div>
         </div>

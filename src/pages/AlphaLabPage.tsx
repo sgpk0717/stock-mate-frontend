@@ -6,7 +6,6 @@ import AlphaMineProgress from "@/components/alpha/AlphaMineProgress"
 import AlphaFactorTable from "@/components/alpha/AlphaFactorTable"
 import AlphaMineHistory from "@/components/alpha/AlphaMineHistory"
 import AlphaFactoryControl from "@/components/alpha/AlphaFactoryControl"
-import FactorLineageTree from "@/components/alpha/FactorLineageTree"
 import CompositeFactorBuilder from "@/components/alpha/CompositeFactorBuilder"
 import {
   useStartAlphaMining,
@@ -217,11 +216,6 @@ function AlphaLabPage() {
     setPage(0)
   }
 
-  // 계보가 있는 팩터 (parent_ids 존재)
-  const factorsWithLineage = factors.filter(
-    (f) => f.parent_ids && f.parent_ids.length > 0,
-  )
-
   return (
     <Tabs defaultValue="discovery" className="flex h-full flex-col p-4">
       <TabsList className="w-fit" data-tour="alpha-tabs">
@@ -285,50 +279,8 @@ function AlphaLabPage() {
 
       {/* 공장 탭 */}
       <TabsContent value="factory" className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl space-y-6">
+        <div className="mx-auto max-w-3xl">
           <AlphaFactoryControl />
-
-          {/* 팩터 계보 트리 */}
-          {factorsWithLineage.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold"><Term>팩터</Term> <Term>계보</Term></h3>
-              <FactorLineageTree
-                factors={factors}
-                onSelect={() => {}}
-              />
-            </div>
-          )}
-
-          {/* 발견된 팩터 목록 */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold">
-              발견된 <Term>팩터</Term> ({totalFactors}개)
-            </h3>
-            <AlphaFactorTable
-              factors={factors}
-              onDelete={handleDeleteFactor}
-              onDeleteBatch={handleDeleteBatch}
-              onValidateBatch={handleValidateBatch}
-              onBacktest={handleBacktest}
-              isValidating={isValidating || startValidation.isPending}
-              validationProgress={validationProgress ?? null}
-              isLoading={isLoadingFactors}
-              page={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-              pageSize={pageSize}
-              onPageSizeChange={handlePageSizeChange}
-              sorts={sorts}
-              onSortChange={handleSortChange}
-              onClearSorts={handleClearSorts}
-              statusFilter={statusFilter}
-              onStatusFilterChange={handleStatusFilterChange}
-              causalFilter={causalFilter}
-              onCausalFilterChange={handleCausalFilterChange}
-              intervalFilter={intervalFilter}
-              onIntervalFilterChange={handleIntervalFilterChange}
-            />
-          </div>
         </div>
       </TabsContent>
 
