@@ -224,3 +224,15 @@ export {
   fetchMcpAudit,
   updateGovernance,
 } from "./simulation"
+
+// ── 데이터 탐색 ──────────────────────────────────────────
+export {
+  fetchCollectionStatus,
+  fetchInvestorTrading,
+  fetchMarginShort,
+  fetchDartFinancials,
+  fetchProgramTrading,
+  fetchCandleCoverage,
+  fetchNewsExplorer,
+  fetchDataGaps,
+} from "./data-explorer"

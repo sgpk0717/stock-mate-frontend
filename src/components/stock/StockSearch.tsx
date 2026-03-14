@@ -21,15 +21,18 @@ import type { StockInfo } from "@/types"
 interface StockSearchProps {
   className?: string
   onSelect?: (symbol: string) => void
+  /** 외부에서 제어할 때 사용. undefined이면 전역 스토어 값 사용 */
+  value?: string | null
 }
 
-function StockSearch({ className, onSelect }: StockSearchProps) {
+function StockSearch({ className, onSelect, value }: StockSearchProps) {
   const [open, setOpen] = useState(false)
-  const selectedSymbol = useAppStore((s) => s.selectedSymbol)
+  const storeSymbol = useAppStore((s) => s.selectedSymbol)
   const setSelectedSymbol = useAppStore((s) => s.setSelectedSymbol)
   const { data: stocks = [] } = useStockList()
 
-  const selected = stocks.find((s) => s.symbol === selectedSymbol)
+  const displaySymbol = value !== undefined ? value : storeSymbol
+  const selected = stocks.find((s) => s.symbol === displaySymbol)
 
   const kospi = stocks.filter((s) => s.market === "KOSPI")
   const kosdaq = stocks.filter((s) => s.market === "KOSDAQ")
