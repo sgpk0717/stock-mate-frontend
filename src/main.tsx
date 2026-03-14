@@ -5,6 +5,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import App from "./App"
 import "./index.css"
+import "./lib/tour-theme.css"
 
 const queryClient = new QueryClient({
   defaultOptions: {

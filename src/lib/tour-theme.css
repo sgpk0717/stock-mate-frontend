@@ -1,0 +1,95 @@
+@import "driver.js/dist/driver.css";
+
+/* Stock Mate 디자인 시스템 커스텀 테마 */
+
+.driver-popover {
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow:
+    0 10px 25px rgba(0, 0, 0, 0.1),
+    0 4px 10px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e5e7eb;
+  max-width: 340px;
+}
+
+.driver-popover .driver-popover-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.4;
+}
+
+.driver-popover .driver-popover-description {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.6;
+  margin-top: 6px;
+}
+
+.driver-popover .driver-popover-progress-text {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.driver-popover .driver-popover-footer {
+  margin-top: 12px;
+}
+
+.driver-popover .driver-popover-navigation-btns {
+  gap: 8px;
+}
+
+.driver-popover .driver-popover-prev-btn {
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  text-shadow: none;
+}
+
+.driver-popover .driver-popover-prev-btn:hover {
+  background-color: #e5e7eb;
+}
+
+.driver-popover .driver-popover-next-btn,
+.driver-popover .driver-popover-close-btn-inside {
+  background-color: #4056f4;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  text-shadow: none;
+}
+
+.driver-popover .driver-popover-next-btn:hover,
+.driver-popover .driver-popover-close-btn-inside:hover {
+  background-color: #3348d4;
+}
+
+.driver-popover .driver-popover-arrow-side-left.driver-popover-arrow,
+.driver-popover .driver-popover-arrow-side-right.driver-popover-arrow,
+.driver-popover .driver-popover-arrow-side-top.driver-popover-arrow,
+.driver-popover .driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-color: #ffffff;
+}
+
+.driver-overlay {
+  background-color: rgba(0, 0, 0, 0.55);
+}
+
+.driver-active-element {
+  border-radius: 8px;
+}
+
+.driver-popover .driver-popover-close-btn {
+  color: #9ca3af;
+}
+
+.driver-popover .driver-popover-close-btn:hover {
+  color: #374151;
+}
