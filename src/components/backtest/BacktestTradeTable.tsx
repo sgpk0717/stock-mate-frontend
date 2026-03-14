@@ -29,6 +29,11 @@ const STEP_BADGE: Record<
   "S-HALF": { label: "부분익절", variant: "default" },
   "S-TRAIL": { label: "트레일링", variant: "default" },
   "S-STOP": { label: "손절", variant: "destructive" },
+  "REBAL-SELL": { label: "리밸런싱", variant: "secondary" },
+  "ORPHAN-SELL": { label: "데이터소실", variant: "destructive" },
+  "STOP-LOSS": { label: "손절", variant: "destructive" },
+  "CIRCUIT-BREAKER": { label: "서킷브레이커", variant: "destructive" },
+  FINAL: { label: "종료청산", variant: "outline" },
 }
 
 function BacktestTradeTable({ trades }: BacktestTradeTableProps) {

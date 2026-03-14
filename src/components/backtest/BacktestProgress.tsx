@@ -8,6 +8,7 @@ interface ProgressData {
   total?: number
   percent?: number
   message?: string
+  error?: string
 }
 
 interface BacktestProgressProps {

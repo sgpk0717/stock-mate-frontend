@@ -48,6 +48,7 @@ function CandleChart({
   const seriesRef = useRef<any>(null)
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null)
   const prevDataKeyRef = useRef("")
+  const dataIntervalRef = useRef(interval)
   const indicatorSeriesRef = useRef<
     Map<string, ISeriesApi<"Line"> | ISeriesApi<"Histogram">>
   >(new Map())
@@ -80,8 +81,6 @@ function CandleChart({
         borderColor: "#e5e5e5",
         timeVisible: true,
         secondsVisible: false,
-        fixLeftEdge: true,
-        fixRightEdge: true,
       },
     })
 
@@ -147,13 +146,15 @@ function CandleChart({
         })),
       )
     }
+    // 현재 데이터가 어떤 인터벌에 속하는지 추적
+    dataIntervalRef.current = interval
     // 종목/인터벌이 바뀔 때만 fitContent (지표 토글 시에는 시간 범위 유지)
     const dataKey = `${data[0].time}-${data[data.length - 1].time}-${data.length}`
     if (prevDataKeyRef.current !== dataKey) {
       prevDataKeyRef.current = dataKey
       chartRef.current?.timeScale().fitContent()
     }
-  }, [data])
+  }, [data, interval])
 
   // 지표 시리즈 업데이트
   useEffect(() => {
@@ -203,9 +204,9 @@ function CandleChart({
   function _renderMA(
     chart: IChartApi,
     candles: CandleData[],
-    allIndicators: Record<string, Array<{ value: number | null }> | undefined>,
+    allIndicators?: CandleChartProps["indicators"],
   ) {
-    if (!maConfigs) return
+    if (!maConfigs || !allIndicators) return
 
     // 현재 활성 MA 키 세트
     const activeKeys = new Set<string>()
@@ -436,6 +437,10 @@ function CandleChart({
   useEffect(() => {
     if (!seriesRef.current || !lastTick || !data.length) return
 
+    // placeholderData로 이전 인터벌 데이터가 남아있을 때 update 방지
+    // (예: 일봉→주봉 전환 시 일봉 데이터에 주봉 버킷 시간을 넣으면 크래시)
+    if (dataIntervalRef.current !== interval) return
+
     const bucketSeconds = intervalToSeconds(interval)
     const now = Math.floor(Date.now() / 1000) + 9 * 3600 // KST 오프셋
     const currentBucket = Math.floor(now / bucketSeconds) * bucketSeconds
@@ -446,45 +451,49 @@ function CandleChart({
         ? "rgba(239,68,68,0.3)"
         : "rgba(59,130,246,0.3)"
 
-    if (lastCandle.time === currentBucket) {
-      seriesRef.current.update({
-        time: currentBucket as UTCTimestamp,
-        open: lastCandle.open,
-        high: Math.max(lastCandle.high, lastTick.price),
-        low: Math.min(lastCandle.low, lastTick.price),
-        close: lastTick.price,
-      })
-      volumeSeriesRef.current?.update({
-        time: currentBucket as UTCTimestamp,
-        value: lastTick.volume,
-        color: volColor,
-      })
-    } else if (currentBucket > lastCandle.time) {
-      seriesRef.current.update({
-        time: currentBucket as UTCTimestamp,
-        open: lastTick.price,
-        high: lastTick.price,
-        low: lastTick.price,
-        close: lastTick.price,
-      })
-      volumeSeriesRef.current?.update({
-        time: currentBucket as UTCTimestamp,
-        value: lastTick.volume,
-        color: volColor,
-      })
-    } else {
-      seriesRef.current.update({
-        time: lastCandle.time as UTCTimestamp,
-        open: lastCandle.open,
-        high: Math.max(lastCandle.high, lastTick.price),
-        low: Math.min(lastCandle.low, lastTick.price),
-        close: lastTick.price,
-      })
-      volumeSeriesRef.current?.update({
-        time: lastCandle.time as UTCTimestamp,
-        value: lastTick.volume,
-        color: volColor,
-      })
+    try {
+      if (lastCandle.time === currentBucket) {
+        seriesRef.current.update({
+          time: currentBucket as UTCTimestamp,
+          open: lastCandle.open,
+          high: Math.max(lastCandle.high, lastTick.price),
+          low: Math.min(lastCandle.low, lastTick.price),
+          close: lastTick.price,
+        })
+        volumeSeriesRef.current?.update({
+          time: currentBucket as UTCTimestamp,
+          value: lastTick.volume,
+          color: volColor,
+        })
+      } else if (currentBucket > lastCandle.time) {
+        seriesRef.current.update({
+          time: currentBucket as UTCTimestamp,
+          open: lastTick.price,
+          high: lastTick.price,
+          low: lastTick.price,
+          close: lastTick.price,
+        })
+        volumeSeriesRef.current?.update({
+          time: currentBucket as UTCTimestamp,
+          value: lastTick.volume,
+          color: volColor,
+        })
+      } else {
+        seriesRef.current.update({
+          time: lastCandle.time as UTCTimestamp,
+          open: lastCandle.open,
+          high: Math.max(lastCandle.high, lastTick.price),
+          low: Math.min(lastCandle.low, lastTick.price),
+          close: lastTick.price,
+        })
+        volumeSeriesRef.current?.update({
+          time: lastCandle.time as UTCTimestamp,
+          value: lastTick.volume,
+          color: volColor,
+        })
+      }
+    } catch {
+      // 인터벌 전환 중 타이밍 이슈로 발생할 수 있는 에러 무시
     }
   }, [lastTick, data, interval])
 

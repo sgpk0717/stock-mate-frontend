@@ -28,6 +28,7 @@ const INTERVALS = [
   { value: "1w", label: "주봉" },
   { value: "1d", label: "일봉" },
   { value: "1h", label: "60분" },
+  { value: "30m", label: "30분" },
   { value: "15m", label: "15분" },
   { value: "5m", label: "5분" },
   { value: "3m", label: "3분" },
@@ -41,11 +42,12 @@ const CANDLE_COUNTS: Record<string, number> = {
   "1M": 200,
   "1w": 800,
   "1d": 4000,
-  "1h": 500,
-  "15m": 500,
-  "5m": 500,
-  "3m": 500,
-  "1m": 500,
+  "1h": 2000,
+  "30m": 2000,
+  "15m": 2000,
+  "5m": 2000,
+  "3m": 2000,
+  "1m": 2000,
 }
 
 const INDICATOR_OPTIONS = [
@@ -131,16 +133,14 @@ function ChartPage() {
       ? tickData[tickData.length - 1].price
       : null)
 
-  // 등락 (실시간 틱 > 틱 데이터 기준)
+  // 등락 — 전일종가 대비 (인터벌 변경과 무관하게 고정)
+  // KIS API가 보내는 change(전일종가 대비)를 우선 사용
   const change = lastTick?.change ?? 0
+  const prevClose = currentPrice ? currentPrice - change : null
   const changePercent =
-    currentPrice && candles?.length
-      ? ((currentPrice - candles[candles.length - 1].open) /
-          candles[candles.length - 1].open) *
-        100
-      : currentPrice && tickData && tickData.length > 1
-        ? ((currentPrice - tickData[0].price) / tickData[0].price) * 100
-        : 0
+    prevClose && prevClose > 0 && currentPrice
+      ? ((currentPrice - prevClose) / prevClose) * 100
+      : 0
 
   // OrderBook fallback (stable empty reference)
   const emptyBook = useMemo(
