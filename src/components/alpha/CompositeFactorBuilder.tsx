@@ -12,7 +12,8 @@ import {
 import FactorCorrelationHeatmap from "./FactorCorrelationHeatmap"
 
 function CompositeFactorBuilder() {
-  const { data: factors = [] } = useAlphaFactors()
+  const { data: factorPage } = useAlphaFactors()
+  const factors = factorPage?.items ?? []
   const buildComposite = useBuildComposite()
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())

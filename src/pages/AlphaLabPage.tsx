@@ -1,10 +1,9 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Term } from "@/components/ui/term"
 import AlphaMineConfig from "@/components/alpha/AlphaMineConfig"
 import AlphaMineProgress from "@/components/alpha/AlphaMineProgress"
 import AlphaFactorTable from "@/components/alpha/AlphaFactorTable"
-import AlphaFactorDetail from "@/components/alpha/AlphaFactorDetail"
 import AlphaMineHistory from "@/components/alpha/AlphaMineHistory"
 import AlphaFactoryControl from "@/components/alpha/AlphaFactoryControl"
 import FactorLineageTree from "@/components/alpha/FactorLineageTree"
@@ -16,28 +15,50 @@ import {
   useDeleteAlphaMiningRun,
   useAlphaFactors,
   useDeleteAlphaFactor,
+  useDeleteAlphaFactorsBatch,
+  useStartCausalValidationBatch,
+  useCausalValidationStatus,
   useBacktestWithFactor,
 } from "@/hooks/queries/use-alpha"
 import type {
-  AlphaFactor,
   AlphaMineRequest,
   AlphaMiningRunSummary,
 } from "@/types/alpha"
 
-const EMPTY_FACTORS: AlphaFactor[] = []
 const EMPTY_RUNS: AlphaMiningRunSummary[] = []
 
 function AlphaLabPage() {
   const [activeRunId, setActiveRunId] = useState<string | null>(null)
-  const [selectedFactor, setSelectedFactor] = useState<AlphaFactor | null>(null)
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(100)
+  const [sorts, setSorts] = useState<{ column: string; order: "asc" | "desc" }[]>([])
+  const [statusFilter, setStatusFilter] = useState("")
+  const [causalFilter, setCausalFilter] = useState("")
+  const [intervalFilter, setIntervalFilter] = useState("")
 
   const startMining = useStartAlphaMining()
   const { data: activeRun } = useAlphaMiningRun(activeRunId)
   const { data: miningRuns = EMPTY_RUNS } = useAlphaMiningRuns()
   const deleteMiningRun = useDeleteAlphaMiningRun()
-  const { data: factors = EMPTY_FACTORS } = useAlphaFactors()
+  const { data: factorPage, isPending: isLoadingFactors } = useAlphaFactors({
+    page,
+    limit: pageSize,
+    sort_by: sorts.length ? sorts.map((s) => s.column).join(",") : undefined,
+    order: sorts.length ? sorts.map((s) => s.order).join(",") : undefined,
+    status: statusFilter || undefined,
+    causal_robust: causalFilter === "" ? undefined : causalFilter === "true",
+    interval: intervalFilter || undefined,
+  })
+  const [validationJobId, setValidationJobId] = useState<string | null>(null)
   const deleteFactor = useDeleteAlphaFactor()
+  const deleteFactorsBatch = useDeleteAlphaFactorsBatch()
+  const startValidation = useStartCausalValidationBatch()
+  const { data: validationProgress } = useCausalValidationStatus(validationJobId)
   const backtestFactor = useBacktestWithFactor()
+
+  const factors = factorPage?.items ?? []
+  const totalFactors = factorPage?.total ?? 0
+  const totalPages = Math.ceil(totalFactors / pageSize)
 
   const handleStart = (config: AlphaMineRequest) => {
     startMining.mutate(config, {
@@ -51,19 +72,25 @@ function AlphaLabPage() {
   }
 
   const handleBacktest = (factorId: string) => {
+    const factor = factors.find((f) => f.id === factorId)
+    const factorInterval = factor?.interval ?? "1d"
+    const isIntraday = factorInterval !== "1d"
     backtestFactor.mutate(
       {
         factorId,
         data: {
           factor_id: factorId,
-          buy_threshold: 0.0,
-          sell_threshold: 0.0,
-          start_date: "2024-01-01",
-          end_date: "2025-12-31",
+          start_date: "",  // 비어 있으면 백엔드가 마이닝 config에서 자동 추출
+          end_date: "",
           symbols: [],
           initial_capital: 100_000_000,
-          position_size_pct: 0.1,
-          max_positions: 10,
+          top_pct: 0.2,
+          max_positions: 20,
+          rebalance_freq: isIntraday ? "daily" : "weekly",
+          band_threshold: 0.05,
+          interval: factorInterval,
+          stop_loss_pct: 0.07,
+          max_drawdown_pct: 0.15,
         },
       },
       {
@@ -102,6 +129,94 @@ function AlphaLabPage() {
     })
   }
 
+  const handleDeleteBatch = (factorIds: string[]) => {
+    if (!window.confirm(`${factorIds.length}개 팩터를 삭제하시겠습니까?`)) return
+    deleteFactorsBatch.mutate(factorIds, {
+      onError: (e) => {
+        console.error("Batch delete failed:", e)
+      },
+    })
+  }
+
+  const isValidating = !!validationJobId && validationProgress?.status === "running"
+  const completedAlerted = useRef<string | null>(null)
+
+  // 검증 완료 시 job_id 해제
+  useEffect(() => {
+    if (
+      validationJobId &&
+      validationProgress?.status === "completed" &&
+      completedAlerted.current !== validationJobId
+    ) {
+      completedAlerted.current = validationJobId
+      const p = validationProgress
+      window.alert(
+        `인과 검증 완료: ${p.completed}개 검증 (robust ${p.robust}, mirage ${p.mirage}), ${p.failed}개 실패`,
+      )
+      setValidationJobId(null)
+    }
+  }, [validationJobId, validationProgress])
+
+  const handleValidateBatch = (factorIds: string[]) => {
+    startValidation.mutate(factorIds, {
+      onSuccess: (res) => {
+        if (res.job_id) {
+          setValidationJobId(res.job_id)
+        } else {
+          window.alert(`인과 검증할 팩터가 없습니다. (${res.skipped}개 이미 검증됨)`)
+        }
+      },
+      onError: (e) => {
+        console.error("Batch validate failed:", e)
+      },
+    })
+  }
+
+  const handleSortChange = (column: string) => {
+    setSorts((prev) => {
+      const idx = prev.findIndex((s) => s.column === column)
+      if (idx === -1) {
+        // 새 컬럼: desc로 추가
+        return [...prev, { column, order: "desc" }]
+      }
+      const current = prev[idx]
+      if (current.order === "desc") {
+        // desc → asc
+        const next = [...prev]
+        next[idx] = { column, order: "asc" }
+        return next
+      }
+      // asc → 제거 (중립)
+      return prev.filter((_, i) => i !== idx)
+    })
+    setPage(0)
+  }
+
+  const handleClearSorts = () => {
+    setSorts([])
+    setPage(0)
+  }
+
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value)
+    setPage(0)
+  }
+
+  const handleCausalFilterChange = (value: string) => {
+    setCausalFilter(value)
+    setPage(0)
+  }
+
+  const handleIntervalFilterChange = (value: string) => {
+    setIntervalFilter(value)
+    setPage(0)
+  }
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size)
+    setPage(0)
+  }
+
   // 계보가 있는 팩터 (parent_ids 존재)
   const factorsWithLineage = factors.filter(
     (f) => f.parent_ids && f.parent_ids.length > 0,
@@ -109,10 +224,10 @@ function AlphaLabPage() {
 
   return (
     <Tabs defaultValue="discovery" className="flex h-full flex-col p-4">
-      <TabsList className="w-fit">
+      <TabsList className="w-fit" data-tour="alpha-tabs">
         <TabsTrigger value="discovery"><Term>탐색</Term></TabsTrigger>
-        <TabsTrigger value="factory">공장</TabsTrigger>
-        <TabsTrigger value="portfolio"><Term>포트폴리오</Term></TabsTrigger>
+        <TabsTrigger value="factory" data-tour="alpha-factory-tab">공장</TabsTrigger>
+        <TabsTrigger value="portfolio" data-tour="alpha-portfolio-tab"><Term>포트폴리오</Term></TabsTrigger>
       </TabsList>
 
       {/* 탐색 탭 */}
@@ -133,26 +248,37 @@ function AlphaLabPage() {
           </div>
 
           {/* 우측 패널 */}
-          <div className="flex flex-1 flex-col gap-4 overflow-y-auto">
+          <div className="flex flex-1 flex-col gap-4 overflow-y-auto" data-tour="alpha-factor-table">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold">
-                <Term>알파</Term> <Term>팩터</Term> ({factors.length}개)
+                <Term>알파</Term> <Term>팩터</Term> ({totalFactors}개)
               </h2>
             </div>
 
             <AlphaFactorTable
               factors={factors}
-              onSelect={(f) => setSelectedFactor(f)}
               onDelete={handleDeleteFactor}
+              onDeleteBatch={handleDeleteBatch}
+              onValidateBatch={handleValidateBatch}
+              onBacktest={handleBacktest}
+              isValidating={isValidating || startValidation.isPending}
+              validationProgress={validationProgress ?? null}
+              isLoading={isLoadingFactors}
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              pageSize={pageSize}
+              onPageSizeChange={handlePageSizeChange}
+              sorts={sorts}
+              onSortChange={handleSortChange}
+              onClearSorts={handleClearSorts}
+              statusFilter={statusFilter}
+              onStatusFilterChange={handleStatusFilterChange}
+              causalFilter={causalFilter}
+              onCausalFilterChange={handleCausalFilterChange}
+              intervalFilter={intervalFilter}
+              onIntervalFilterChange={handleIntervalFilterChange}
             />
-
-            {selectedFactor && (
-              <AlphaFactorDetail
-                factor={selectedFactor}
-                onBacktest={handleBacktest}
-                onClose={() => setSelectedFactor(null)}
-              />
-            )}
           </div>
         </div>
       </TabsContent>
@@ -168,7 +294,7 @@ function AlphaLabPage() {
               <h3 className="text-sm font-semibold"><Term>팩터</Term> <Term>계보</Term></h3>
               <FactorLineageTree
                 factors={factors}
-                onSelect={(f) => setSelectedFactor(f)}
+                onSelect={() => {}}
               />
             </div>
           )}
@@ -176,22 +302,33 @@ function AlphaLabPage() {
           {/* 발견된 팩터 목록 */}
           <div className="space-y-2">
             <h3 className="text-sm font-semibold">
-              발견된 <Term>팩터</Term> ({factors.length}개)
+              발견된 <Term>팩터</Term> ({totalFactors}개)
             </h3>
             <AlphaFactorTable
               factors={factors}
-              onSelect={(f) => setSelectedFactor(f)}
               onDelete={handleDeleteFactor}
+              onDeleteBatch={handleDeleteBatch}
+              onValidateBatch={handleValidateBatch}
+              onBacktest={handleBacktest}
+              isValidating={isValidating || startValidation.isPending}
+              validationProgress={validationProgress ?? null}
+              isLoading={isLoadingFactors}
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              pageSize={pageSize}
+              onPageSizeChange={handlePageSizeChange}
+              sorts={sorts}
+              onSortChange={handleSortChange}
+              onClearSorts={handleClearSorts}
+              statusFilter={statusFilter}
+              onStatusFilterChange={handleStatusFilterChange}
+              causalFilter={causalFilter}
+              onCausalFilterChange={handleCausalFilterChange}
+              intervalFilter={intervalFilter}
+              onIntervalFilterChange={handleIntervalFilterChange}
             />
           </div>
-
-          {selectedFactor && (
-            <AlphaFactorDetail
-              factor={selectedFactor}
-              onBacktest={handleBacktest}
-              onClose={() => setSelectedFactor(null)}
-            />
-          )}
         </div>
       </TabsContent>
 

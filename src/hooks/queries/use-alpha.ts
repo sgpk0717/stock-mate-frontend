@@ -13,6 +13,9 @@ import {
   fetchAlphaFactors,
   fetchAlphaFactor,
   deleteAlphaFactor,
+  deleteAlphaFactorsBatch,
+  startCausalValidationBatch,
+  fetchCausalValidationStatus,
   backtestWithFactor,
   validateFactor,
   startFactory,
@@ -21,6 +24,9 @@ import {
   buildComposite,
   fetchCorrelation,
   fetchUniverses,
+  createFactorChat,
+  sendFactorChatMessage,
+  saveFactorFromChat,
 } from "@/api/alpha"
 import type {
   AlphaMineRequest,
@@ -85,10 +91,33 @@ export function useDeleteAlphaMiningRun() {
   })
 }
 
-export function useAlphaFactors(params?: { status?: string; min_ic?: number }) {
+export function useAlphaFactors(params?: {
+  status?: string
+  min_ic?: number
+  causal_robust?: boolean
+  interval?: string
+  sort_by?: string
+  order?: string
+  page?: number
+  limit?: number
+}) {
+  const page = params?.page ?? 0
+  const limit = params?.limit ?? 100
+  const offset = page * limit
   return useQuery({
-    queryKey: ["alpha-factors", params],
-    queryFn: () => fetchAlphaFactors(params),
+    queryKey: ["alpha-factors", { ...params, offset, limit }],
+    queryFn: () =>
+      fetchAlphaFactors({
+        status: params?.status,
+        min_ic: params?.min_ic,
+        causal_robust: params?.causal_robust,
+        interval: params?.interval,
+        sort_by: params?.sort_by,
+        order: params?.order,
+        offset,
+        limit,
+      }),
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -106,6 +135,39 @@ export function useDeleteAlphaFactor() {
     mutationFn: (factorId: string) => deleteAlphaFactor(factorId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["alpha-factors"] })
+    },
+  })
+}
+
+export function useDeleteAlphaFactorsBatch() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (factorIds: string[]) => deleteAlphaFactorsBatch(factorIds),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["alpha-factors"] })
+    },
+  })
+}
+
+export function useStartCausalValidationBatch() {
+  return useMutation({
+    mutationFn: (factorIds: string[]) => startCausalValidationBatch(factorIds),
+  })
+}
+
+export function useCausalValidationStatus(jobId: string | null) {
+  const qc = useQueryClient()
+  return useQuery({
+    queryKey: ["causal-validation-status", jobId],
+    queryFn: () => fetchCausalValidationStatus(jobId!),
+    enabled: !!jobId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      if (status === "completed") {
+        qc.invalidateQueries({ queryKey: ["alpha-factors"] })
+        return false
+      }
+      return 1000
     },
   })
 }
@@ -183,5 +245,32 @@ export function useCorrelation(factorIds: string[]) {
     queryKey: ["alpha-correlation", factorIds],
     queryFn: () => fetchCorrelation(factorIds),
     enabled: factorIds.length >= 2,
+  })
+}
+
+// Factor AI Chat
+
+export function useCreateFactorChat() {
+  return useMutation({
+    mutationFn: (factorId: string) => createFactorChat(factorId),
+  })
+}
+
+export function useSendFactorChatMessage(sessionId: string | null) {
+  return useMutation({
+    mutationFn: (message: string) => {
+      if (!sessionId) throw new Error("No session")
+      return sendFactorChatMessage(sessionId, message)
+    },
+  })
+}
+
+export function useSaveFactorChat() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (sessionId: string) => saveFactorFromChat(sessionId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["alpha-factors"] })
+    },
   })
 }

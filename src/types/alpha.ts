@@ -28,8 +28,14 @@ export interface AlphaFactor {
   is_elite?: boolean | null
   population_active?: boolean | null
   birth_generation?: number | null
+  interval?: string | null
   created_at: string
   updated_at: string
+}
+
+export interface AlphaFactorPage {
+  items: AlphaFactor[]
+  total: number
 }
 
 export interface AlphaMiningRun {
@@ -77,6 +83,8 @@ export interface AlphaMineRequest {
   use_pysr: boolean
   pysr_max_size: number
   pysr_parsimony: number
+  interval: string
+  seed_factor_ids?: string[]
 }
 
 export interface AlphaMineResponse {
@@ -87,14 +95,17 @@ export interface AlphaMineResponse {
 
 export interface AlphaFactorBacktestRequest {
   factor_id: string
-  buy_threshold: number
-  sell_threshold: number
   start_date: string
   end_date: string
   symbols: string[]
   initial_capital: number
-  position_size_pct: number
-  max_positions: number
+  top_pct: number // 상위 몇 % 매수 (0.05~0.5)
+  max_positions: number // 최대 보유 종목 수 (1~100)
+  rebalance_freq: "every_bar" | "hourly" | "daily" | "weekly" | "monthly"
+  band_threshold: number // 밴드 리밸런싱 임계값 (0~0.2)
+  interval: string
+  stop_loss_pct: number // 포지션 손절 (0=비활성, 0.07=7%)
+  max_drawdown_pct: number // 포트폴리오 서킷 브레이커 (0=비활성, 0.15=15%)
 }
 
 export interface CausalValidationResponse {
@@ -112,6 +123,27 @@ export interface CausalValidationResponse {
   dag_edges: { from: string; to: string }[]
 }
 
+// Causal Validation Job Progress
+
+export interface CausalValidationJob {
+  job_id: string | null
+  total: number
+  skipped: number
+}
+
+export interface CausalValidationProgress {
+  status: "running" | "completed"
+  total: number
+  completed: number
+  failed: number
+  robust: number
+  mirage: number
+  started_at: number
+  avg_ms_per_factor: number | null
+  estimated_remaining_ms: number | null
+  current_factor_idx: number
+}
+
 // Phase 3: Alpha Factory
 
 export interface AlphaFactoryStartRequest {
@@ -125,6 +157,8 @@ export interface AlphaFactoryStartRequest {
   orthogonality_threshold: number
   enable_crossover: boolean
   enable_causal: boolean
+  max_cycles?: number
+  data_interval: string
 }
 
 export interface AlphaFactoryStatus {
@@ -132,12 +166,15 @@ export interface AlphaFactoryStatus {
   cycles_completed: number
   factors_discovered_total: number
   current_cycle_progress: number
+  current_cycle_message?: string
   last_cycle_at: string | null
+  started_at?: string | null
   config: Record<string, unknown> | null
   population_size?: number
   elite_count?: number
   generation?: number
   operator_stats?: Record<string, unknown> | null
+  last_funnel?: Record<string, number> | null
 }
 
 export interface CompositeFactorBuildRequest {

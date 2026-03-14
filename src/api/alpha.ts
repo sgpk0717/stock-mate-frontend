@@ -1,6 +1,7 @@
 import { apiFetch } from "./client"
 import type {
   AlphaFactor,
+  AlphaFactorPage,
   AlphaFactoryStartRequest,
   AlphaFactoryStatus,
   AlphaMineRequest,
@@ -8,6 +9,8 @@ import type {
   AlphaMiningRun,
   AlphaMiningRunSummary,
   AlphaFactorBacktestRequest,
+  CausalValidationJob,
+  CausalValidationProgress,
   CausalValidationResponse,
   CompositeFactorBuildRequest,
   CompositeFactorResponse,
@@ -56,14 +59,29 @@ export async function deleteMiningRun(runId: string): Promise<void> {
 export async function fetchAlphaFactors(params?: {
   status?: string
   min_ic?: number
-}): Promise<AlphaFactor[]> {
+  causal_robust?: boolean
+  interval?: string
+  sort_by?: string
+  order?: string
+  offset?: number
+  limit?: number
+}): Promise<AlphaFactorPage> {
   const query = new URLSearchParams()
   if (params?.status) query.set("status", params.status)
   if (params?.min_ic !== undefined)
     query.set("min_ic", String(params.min_ic))
+  if (params?.causal_robust !== undefined)
+    query.set("causal_robust", String(params.causal_robust))
+  if (params?.interval) query.set("interval", params.interval)
+  if (params?.sort_by) query.set("sort_by", params.sort_by)
+  if (params?.order) query.set("order", params.order)
+  if (params?.offset !== undefined)
+    query.set("offset", String(params.offset))
+  if (params?.limit !== undefined)
+    query.set("limit", String(params.limit))
 
   const qs = query.toString()
-  return apiFetch<AlphaFactor[]>(`/alpha/factors${qs ? `?${qs}` : ""}`)
+  return apiFetch<AlphaFactorPage>(`/alpha/factors${qs ? `?${qs}` : ""}`)
 }
 
 export async function fetchAlphaFactor(factorId: string): Promise<AlphaFactor> {
@@ -78,6 +96,36 @@ export async function deleteAlphaFactor(factorId: string): Promise<void> {
   if (!response.ok) {
     throw new Error(`API Error: ${response.status} ${response.statusText}`)
   }
+}
+
+export async function deleteAlphaFactorsBatch(factorIds: string[]): Promise<void> {
+  const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8007"
+  const response = await fetch(`${API_URL}/alpha/factors/delete-batch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ factor_ids: factorIds }),
+  })
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`)
+  }
+}
+
+export async function startCausalValidationBatch(
+  factorIds: string[],
+): Promise<CausalValidationJob> {
+  return apiFetch<CausalValidationJob>(
+    "/alpha/factors/validate-batch",
+    {
+      method: "POST",
+      body: JSON.stringify({ factor_ids: factorIds }),
+    },
+  )
+}
+
+export async function fetchCausalValidationStatus(
+  jobId: string,
+): Promise<CausalValidationProgress> {
+  return apiFetch<CausalValidationProgress>(`/alpha/validate/${jobId}/status`)
 }
 
 export async function backtestWithFactor(
@@ -100,6 +148,92 @@ export async function validateFactor(
     `/alpha/factor/${factorId}/validate`,
     { method: "POST" },
   )
+}
+
+// Factor AI Chat
+
+export interface FactorChatCreateResponse {
+  session_id: string
+  source_factor_id: string
+  source_expression: string
+  universe: string
+  interval: string
+  status: string
+}
+
+export interface FactorChatMessageResponse {
+  role: string
+  content: string
+  timestamp: string
+  factor_draft?: Record<string, unknown> | null
+  current_expression?: string | null
+  current_metrics?: Record<string, number> | null
+}
+
+export interface FactorChatSession {
+  session_id: string
+  messages: Array<{
+    role: string
+    content: string
+    timestamp: string
+    factor_draft?: Record<string, unknown> | null
+  }>
+  source_factor_id: string
+  source_expression: string
+  current_expression?: string | null
+  current_metrics?: Record<string, number> | null
+  universe: string
+  interval: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export async function createFactorChat(
+  factorId: string,
+): Promise<FactorChatCreateResponse> {
+  return apiFetch<FactorChatCreateResponse>(
+    `/alpha/factor/${factorId}/chat`,
+    { method: "POST" },
+  )
+}
+
+export async function sendFactorChatMessage(
+  sessionId: string,
+  message: string,
+): Promise<FactorChatMessageResponse> {
+  return apiFetch<FactorChatMessageResponse>(
+    `/alpha/factor/chat/${sessionId}/message`,
+    {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    },
+  )
+}
+
+export async function fetchFactorChatSession(
+  sessionId: string,
+): Promise<FactorChatSession> {
+  return apiFetch<FactorChatSession>(`/alpha/factor/chat/${sessionId}`)
+}
+
+export async function saveFactorFromChat(
+  sessionId: string,
+): Promise<AlphaFactor> {
+  return apiFetch<AlphaFactor>(`/alpha/factor/chat/${sessionId}/save`, {
+    method: "POST",
+  })
+}
+
+export async function deleteFactorChat(sessionId: string): Promise<void> {
+  const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8007"
+  const response = await fetch(
+    `${API_URL}/alpha/factor/chat/${sessionId}`,
+    { method: "DELETE" },
+  )
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`)
+  }
 }
 
 // Phase 3: Factory

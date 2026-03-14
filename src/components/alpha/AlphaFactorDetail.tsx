@@ -4,6 +4,7 @@ import { GlossaryText } from "@/components/ui/glossary-text"
 import { Term } from "@/components/ui/term"
 import CausalBadge from "@/components/alpha/CausalBadge"
 import CausalDAGView from "@/components/alpha/CausalDAGView"
+import FactorChat from "@/components/alpha/FactorChat"
 import { useValidateFactor } from "@/hooks/queries/use-alpha"
 import type { AlphaFactor, CausalValidationResponse } from "@/types/alpha"
 
@@ -17,6 +18,21 @@ function AlphaFactorDetail({ factor, onBacktest, onClose }: AlphaFactorDetailPro
   const validateMutation = useValidateFactor()
   const [causalResult, setCausalResult] = useState<CausalValidationResponse | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [showChat, setShowChat] = useState(false)
+
+  if (showChat) {
+    return (
+      <div className="rounded-lg border p-4">
+        <div className="flex h-[500px] flex-col">
+          <FactorChat
+            factor={factor}
+            onSaved={() => setShowChat(false)}
+            onClose={() => setShowChat(false)}
+          />
+        </div>
+      </div>
+    )
+  }
 
   const handleValidate = () => {
     setErrorMsg(null)
@@ -49,21 +65,25 @@ function AlphaFactorDetail({ factor, onBacktest, onClose }: AlphaFactorDetailPro
         <code className="text-sm font-mono break-all">{factor.expression_str}</code>
       </div>
 
-      {/* 가설 */}
-      {factor.hypothesis && (
-        <div className="mb-3">
-          <p className="mb-1 text-xs text-muted-foreground">가설</p>
-          <GlossaryText text={factor.hypothesis} className="text-sm" />
-        </div>
-      )}
+      {/* 수식 설명 */}
+      <div className="mb-3">
+        <p className="mb-1 text-xs text-muted-foreground">수식 설명</p>
+        {factor.hypothesis && !factor.hypothesis.startsWith("Evolved from") && !factor.hypothesis.startsWith("Seed factor") ? (
+          <GlossaryText text={factor.hypothesis} className="text-sm whitespace-pre-line" />
+        ) : (
+          <p className="text-xs text-muted-foreground italic">
+            아직 한글 설명이 생성되지 않은 팩터입니다. 새로 진화시키면 한글 설명이 생성됩니다.
+          </p>
+        )}
+      </div>
 
       {/* 메트릭 그리드 */}
       <div className="mb-3 grid grid-cols-3 gap-2">
         <MetricCard label={<><Term k="IC">IC</Term> Mean</>} value={factor.ic_mean} format={4} />
         <MetricCard label={<><Term k="IC">IC</Term> Std</>} value={factor.ic_std} format={4} />
         <MetricCard label={<Term>ICIR</Term>} value={factor.icir} format={2} />
-        <MetricCard label={<><Term k="IC">IC</Term> <Term k="Sharpe">Sharpe</Term></>} value={factor.sharpe} format={2} />
-        <MetricCard label={<Term>MDD</Term>} value={factor.max_drawdown} format={4} />
+        <MetricCard label={<><Term k="Net Sharpe">Net Sharpe</Term></>} value={factor.sharpe} format={2} />
+        <MetricCard label={<><Term k="MDD">L/S MDD</Term></>} value={factor.max_drawdown} format={4} pct />
         <MetricCard label={<Term>Signal Flip</Term>} value={factor.turnover} format={2} />
       </div>
 
@@ -92,7 +112,7 @@ function AlphaFactorDetail({ factor, onBacktest, onClose }: AlphaFactorDetailPro
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          인과 검증 진행 중... (DoWhy 4단계 분석, 1분 이상 소요될 수 있습니다)
+          인과 검증 진행 중... (4단계: ATE 추정 → 플라시보 → 랜덤 원인 → 체제 변화)
         </div>
       )}
 
@@ -165,6 +185,14 @@ function AlphaFactorDetail({ factor, onBacktest, onClose }: AlphaFactorDetailPro
         <Button size="sm" onClick={() => onBacktest(factor.id)} className="flex-1">
           이 팩터로 백테스트
         </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setShowChat(true)}
+          className="flex-1"
+        >
+          AI 수정
+        </Button>
       </div>
     </div>
   )
@@ -174,17 +202,21 @@ function MetricCard({
   label,
   value,
   format,
+  pct,
 }: {
   label: React.ReactNode
   value: number | null
   format: number
+  pct?: boolean
 }) {
+  const display = value != null
+    ? pct ? `${(value * 100).toFixed(1)}%` : value.toFixed(format)
+    : "—"
+
   return (
     <div className="rounded border p-2 text-center">
       <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="text-sm font-semibold">
-        {value != null ? value.toFixed(format) : "—"}
-      </p>
+      <p className="text-sm font-semibold">{display}</p>
     </div>
   )
 }
