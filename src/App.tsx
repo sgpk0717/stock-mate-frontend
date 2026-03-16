@@ -11,6 +11,7 @@ import AlphaLabPage from "@/pages/AlphaLabPage"
 import SimulationPage from "@/pages/SimulationPage"
 import WorkflowPage from "@/pages/WorkflowPage"
 import DataExplorerPage from "@/pages/DataExplorerPage"
+import TelegramLogPage from "@/pages/TelegramLogPage"
 import SettingsPage from "@/pages/SettingsPage"
 
 function App() {
@@ -29,6 +30,7 @@ function App() {
           <Route path="/simulation" element={<SimulationPage />} />
           <Route path="/workflow" element={<WorkflowPage />} />
           <Route path="/data" element={<DataExplorerPage />} />
+          <Route path="/telegram" element={<TelegramLogPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

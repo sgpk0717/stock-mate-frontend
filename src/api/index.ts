@@ -225,6 +225,9 @@ export {
   updateGovernance,
 } from "./simulation"
 
+// ── 텔레그램 ──────────────────────────────────────────────
+export { fetchTelegramLogs } from "./telegram"
+
 // ── 데이터 탐색 ──────────────────────────────────────────
 export {
   fetchCollectionStatus,

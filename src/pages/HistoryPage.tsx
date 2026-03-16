@@ -53,7 +53,7 @@ function HistoryPage() {
   return (
     <div className="space-y-4">
       {/* 요약 */}
-      <div className="flex gap-4">
+      <div data-tour="hist-summary" className="flex gap-4">
         <div className="text-sm text-muted-foreground">
           전체 <span className="font-medium text-foreground">{allOrders?.length ?? 0}</span>건
         </div>
@@ -66,7 +66,7 @@ function HistoryPage() {
       </div>
 
       {/* 필터 */}
-      <div className="flex flex-wrap gap-2">
+      <div data-tour="hist-filters" className="flex flex-wrap gap-2">
         <div className="flex gap-1 rounded-lg border p-1">
           {(["ALL", "BUY", "SELL"] as SideFilter[]).map((f) => (
             <Button
@@ -101,7 +101,7 @@ function HistoryPage() {
       </div>
 
       {/* 테이블 */}
-      <Card>
+      <Card data-tour="hist-table">
         <CardHeader>
           <CardTitle className="text-base">
             주문내역

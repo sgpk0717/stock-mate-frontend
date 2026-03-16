@@ -67,11 +67,13 @@ export async function fetchProgramTrading(
 }
 
 export async function fetchNewsExplorer(
-  symbol?: string,
+  symbol?: string, startDate?: string, endDate?: string,
   page = 0, limit = 50,
 ): Promise<PagedResponse<NewsExplorerRow>> {
   const params = new URLSearchParams()
   if (symbol) params.set("symbol", symbol)
+  if (startDate) params.set("start", startDate)
+  if (endDate) params.set("end", endDate)
   params.set("page", String(page))
   params.set("limit", String(limit))
   return apiFetch<PagedResponse<NewsExplorerRow>>(`/data/news?${params}`)

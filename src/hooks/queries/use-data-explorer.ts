@@ -62,10 +62,13 @@ export function useProgramTrading(
   })
 }
 
-export function useNewsExplorer(symbol: string | null, page = 0, limit = 50) {
+export function useNewsExplorer(
+  symbol: string | null, startDate?: string, endDate?: string,
+  page = 0, limit = 50,
+) {
   return useQuery({
-    queryKey: ["news-explorer", symbol, page, limit],
-    queryFn: () => fetchNewsExplorer(symbol ?? undefined, page, limit),
+    queryKey: ["news-explorer", symbol, startDate, endDate, page, limit],
+    queryFn: () => fetchNewsExplorer(symbol ?? undefined, startDate, endDate, page, limit),
     placeholderData: keepPreviousData,
   })
 }

@@ -1,5 +1,22 @@
 import type { ReactNode } from "react"
 import { NavLink, useLocation } from "react-router-dom"
+import {
+  Bot,
+  Briefcase,
+  CandlestickChart,
+  CircleHelp,
+  ClipboardPen,
+  Database,
+  FlaskConical,
+  Globe,
+  LayoutDashboard,
+  MessageSquare,
+  Microscope,
+  RefreshCcw,
+  ScrollText,
+  Settings,
+  type LucideIcon,
+} from "lucide-react"
 import { Term } from "@/components/ui/term"
 import { cn } from "@/lib/utils"
 import { useTour } from "@/hooks/use-tour"
@@ -32,23 +49,25 @@ const TOUR_MAP: Record<string, { key: string; steps: DriveStep[] }> = {
 
 interface NavItem {
   label: ReactNode
-  icon: string
+  icon: LucideIcon
+  iconClass: string
   to: string
 }
 
 const navItems: NavItem[] = [
-  { label: "대시보드", icon: "📊", to: "/" },
-  { label: "차트", icon: "📈", to: "/chart" },
-  { label: "주문", icon: "📝", to: "/order" },
-  { label: <Term>포지션</Term>, icon: "💼", to: "/positions" },
-  { label: <Term>백테스트</Term>, icon: "🧪", to: "/backtest" },
-  { label: <Term>알파 탐색</Term>, icon: "🔬", to: "/alpha" },
-  { label: <Term>시뮬레이션</Term>, icon: "🌐", to: "/simulation" },
-  { label: <Term>자동매매</Term>, icon: "🤖", to: "/trading" },
-  { label: <Term>워크플로우</Term>, icon: "🔄", to: "/workflow" },
-  { label: "데이터 탐색", icon: "🗃️", to: "/data" },
-  { label: "주문내역", icon: "📋", to: "/history" },
-  { label: "설정", icon: "⚙️", to: "/settings" },
+  { label: "대시보드", icon: LayoutDashboard, iconClass: "text-blue-400", to: "/" },
+  { label: "차트", icon: CandlestickChart, iconClass: "text-emerald-400", to: "/chart" },
+  { label: "주문", icon: ClipboardPen, iconClass: "text-amber-400", to: "/order" },
+  { label: <Term>포지션</Term>, icon: Briefcase, iconClass: "text-violet-400", to: "/positions" },
+  { label: <Term>백테스트</Term>, icon: FlaskConical, iconClass: "text-pink-400", to: "/backtest" },
+  { label: <Term>알파 탐색</Term>, icon: Microscope, iconClass: "text-cyan-400", to: "/alpha" },
+  { label: <Term>시뮬레이션</Term>, icon: Globe, iconClass: "text-teal-400", to: "/simulation" },
+  { label: <Term>자동매매</Term>, icon: Bot, iconClass: "text-indigo-400", to: "/trading" },
+  { label: <Term>워크플로우</Term>, icon: RefreshCcw, iconClass: "text-orange-400", to: "/workflow" },
+  { label: "데이터 탐색", icon: Database, iconClass: "text-slate-400", to: "/data" },
+  { label: "주문내역", icon: ScrollText, iconClass: "text-gray-400", to: "/history" },
+  { label: "텔레그램 로그", icon: MessageSquare, iconClass: "text-sky-400", to: "/telegram" },
+  { label: "설정", icon: Settings, iconClass: "text-zinc-400", to: "/settings" },
 ]
 
 function TourButton() {
@@ -70,7 +89,7 @@ function TourButton() {
       )}
       title="페이지 가이드"
     >
-      <span className="text-base">❓</span>
+      <CircleHelp className="h-4 w-4 shrink-0 text-muted-foreground" />
       가이드
     </button>
   )
@@ -95,7 +114,7 @@ function Sidebar() {
                 )
               }
             >
-              <span className="text-base">{item.icon}</span>
+              <item.icon className={cn("h-4 w-4 shrink-0", item.iconClass)} />
               {item.label}
             </NavLink>
           ))}

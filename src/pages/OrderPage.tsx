@@ -62,7 +62,7 @@ function OrderPage() {
     <div className="space-y-4">
       {/* 모의투자 계좌 요약 */}
       {account && (
-        <div className="flex items-center gap-4">
+        <div data-tour="order-account" className="flex items-center gap-4">
           <Badge variant="secondary" className="text-xs">
             <Term>모의투자</Term>
           </Badge>
@@ -90,7 +90,7 @@ function OrderPage() {
 
       <div className="grid gap-4 lg:grid-cols-[1fr_280px_320px]">
         {/* 주문 폼 */}
-        <Card>
+        <Card data-tour="order-form">
           <CardHeader>
             <CardTitle className="text-base"><Term desc="실제 돈 없이 가상으로 매매 연습">모의주문</Term></CardTitle>
           </CardHeader>
@@ -100,15 +100,17 @@ function OrderPage() {
         </Card>
 
         {/* 호가창 */}
-        <OrderBook
-          data={orderBook}
-          onPriceClick={(price) => setFormPrice(price)}
-        />
+        <div data-tour="order-book">
+          <OrderBook
+            data={orderBook}
+            onPriceClick={(price) => setFormPrice(price)}
+          />
+        </div>
 
         {/* 주문 내역 + 포지션 */}
         <div className="space-y-4">
           {/* 주문 탭 */}
-          <Card>
+          <Card data-tour="order-tabs">
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <Button
@@ -227,7 +229,7 @@ function OrderPage() {
           </Card>
 
           {/* 모의 포지션 */}
-          <Card>
+          <Card data-tour="order-positions">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">보유종목</CardTitle>
             </CardHeader>

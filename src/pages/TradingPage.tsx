@@ -19,14 +19,14 @@ function TradingPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div data-tour="trading-mode" className="flex items-center justify-between">
         <h1 className="text-lg font-bold"><Term desc="전략 기반으로 자동으로 매수/매도하는 기능">자동매매</Term></h1>
         <ModeSwitch mode={mode} onModeChange={setMode} />
       </div>
 
       {/* KIS 계좌 요약 */}
       {balance && (
-        <div className="grid gap-3 md:grid-cols-4">
+        <div data-tour="trading-summary" className="grid gap-3 md:grid-cols-4">
           <SummaryCard
             label="총 평가"
             value={formatKRW(balance.account.total_eval)}
@@ -50,11 +50,13 @@ function TradingPage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* 왼쪽: 전략 관리 + 매매 기록 */}
         <div className="space-y-6">
-          <ContextPanel mode={mode} />
+          <div data-tour="trading-context">
+            <ContextPanel mode={mode} />
+          </div>
 
           {/* 선택된 세션의 매매 기록 */}
           {selectedSession && trades && trades.length > 0 && (
-            <Card>
+            <Card data-tour="trading-trades">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium">
                   매매 기록 ({trades.length}건)
@@ -204,7 +206,7 @@ function TradingPage() {
         </div>
 
         {/* 오른쪽: 실행 세션 */}
-        <div>
+        <div data-tour="trading-status">
           <LiveStatus onSelectSession={setSelectedSession} />
         </div>
       </div>

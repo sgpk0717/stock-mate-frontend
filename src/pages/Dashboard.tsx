@@ -83,7 +83,7 @@ function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div data-tour="dash-summary" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard
           title="총 평가자산"
           value={formatKRW(fullAsset)}
@@ -113,7 +113,7 @@ function Dashboard() {
       </div>
 
       {/* Chart */}
-      <Card>
+      <Card data-tour="dash-chart">
         <CardHeader>
           <CardTitle className="text-base">실시간 차트</CardTitle>
         </CardHeader>
@@ -123,7 +123,7 @@ function Dashboard() {
       </Card>
 
       {/* Positions Table */}
-      <Card>
+      <Card data-tour="dash-holdings">
         <CardHeader>
           <CardTitle className="text-base">보유 종목</CardTitle>
         </CardHeader>

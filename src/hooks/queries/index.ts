@@ -88,3 +88,4 @@ export {
   useCandleCoverage,
   useDataGaps,
 } from "./use-data-explorer"
+export { useTelegramLogs } from "./use-telegram"

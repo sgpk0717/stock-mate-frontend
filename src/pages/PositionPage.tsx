@@ -33,7 +33,7 @@ function PositionPage() {
   return (
     <div className="space-y-6">
       {/* 요약 카드 */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div data-tour="pos-summary" className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-normal text-muted-foreground">
@@ -90,7 +90,7 @@ function PositionPage() {
       </div>
 
       {/* 종목 상세 테이블 */}
-      <Card>
+      <Card data-tour="pos-table">
         <CardHeader>
           <CardTitle className="text-base">보유 종목 상세</CardTitle>
         </CardHeader>

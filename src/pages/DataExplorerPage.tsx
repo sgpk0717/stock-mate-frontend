@@ -12,20 +12,22 @@ import DataGapsTab from "@/components/data-explorer/DataGapsTab"
 
 function DataExplorerPage() {
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null)
-  const [startDate, setStartDate] = useState<string>("")
-  const [endDate, setEndDate] = useState<string>("")
+  const [startDate, setStartDate] = useState("")
+  const [endDate, setEndDate] = useState("")
   const [pages, setPages] = useState<Record<string, number>>({})
   const [pageSize, setPageSize] = useState(50)
 
   const getPage = (tab: string) => pages[tab] ?? 0
   const setPage = (tab: string, p: number) => setPages((prev) => ({ ...prev, [tab]: p }))
-  const handlePageSizeChange = (size: number) => {
-    setPageSize(size)
-    setPages({})
-  }
-  const handleSymbolChange = (symbol: string) => {
-    setSelectedSymbol(symbol)
-    setPages({})
+  const handlePageSizeChange = (size: number) => { setPageSize(size); setPages({}) }
+  const handleSymbolChange = (symbol: string) => { setSelectedSymbol(symbol); setPages({}) }
+  const handleStartChange = (v: string) => { setStartDate(v); setPages({}) }
+  const handleEndChange = (v: string) => { setEndDate(v); setPages({}) }
+
+  const dateProps = {
+    startDate, endDate,
+    onStartDateChange: handleStartChange,
+    onEndDateChange: handleEndChange,
   }
 
   return (
@@ -33,22 +35,6 @@ function DataExplorerPage() {
       <div data-tour="data-header" className="flex flex-wrap items-center gap-4">
         <h1 className="text-2xl font-bold">데이터 탐색</h1>
         <StockSearch onSelect={handleSymbolChange} value={selectedSymbol} />
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-muted-foreground">시작</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => { setStartDate(e.target.value); setPages({}) }}
-            className="rounded-md border border-input bg-background px-2 py-1 text-xs"
-          />
-          <label className="text-xs text-muted-foreground">종료</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => { setEndDate(e.target.value); setPages({}) }}
-            className="rounded-md border border-input bg-background px-2 py-1 text-xs"
-          />
-        </div>
       </div>
 
       <div data-tour="data-overview">
@@ -71,6 +57,7 @@ function DataExplorerPage() {
             symbol={selectedSymbol} start={startDate || undefined} end={endDate || undefined}
             page={getPage("investor")} pageSize={pageSize}
             onPageChange={(p) => setPage("investor", p)} onPageSizeChange={handlePageSizeChange}
+            {...dateProps}
           />
         </TabsContent>
         <TabsContent value="margin">
@@ -78,6 +65,7 @@ function DataExplorerPage() {
             symbol={selectedSymbol} start={startDate || undefined} end={endDate || undefined}
             page={getPage("margin")} pageSize={pageSize}
             onPageChange={(p) => setPage("margin", p)} onPageSizeChange={handlePageSizeChange}
+            {...dateProps}
           />
         </TabsContent>
         <TabsContent value="dart">
@@ -92,13 +80,15 @@ function DataExplorerPage() {
             symbol={selectedSymbol} start={startDate || undefined} end={endDate || undefined}
             page={getPage("program")} pageSize={pageSize}
             onPageChange={(p) => setPage("program", p)} onPageSizeChange={handlePageSizeChange}
+            {...dateProps}
           />
         </TabsContent>
         <TabsContent value="news">
           <NewsSentimentTab
-            symbol={selectedSymbol}
+            symbol={selectedSymbol} start={startDate || undefined} end={endDate || undefined}
             page={getPage("news")} pageSize={pageSize}
             onPageChange={(p) => setPage("news", p)} onPageSizeChange={handlePageSizeChange}
+            {...dateProps}
           />
         </TabsContent>
         <TabsContent value="candle">

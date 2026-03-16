@@ -169,10 +169,11 @@ function ChartPage() {
   return (
     <div className="space-y-4">
       {/* 상단: 종목 검색 + 현재가 */}
-      <div className="flex flex-wrap items-center gap-4">
+      <div data-tour="chart-search" className="flex flex-wrap items-center gap-4">
         <StockSearch onSelect={handleSymbolChange} />
 
         <Button
+          data-tour="chart-news"
           size="sm"
           variant={showNews ? "default" : "outline"}
           className={cn(
@@ -224,6 +225,7 @@ function ChartPage() {
         >
           {/* 캔들 차트 */}
           <Card
+            data-tour="chart-candle"
             className="relative min-w-0 overflow-visible"
             style={
               panelsBelow
@@ -257,7 +259,7 @@ function ChartPage() {
                 {/* 지표 토글 (틱 모드에서는 숨김) */}
                 {!isTickMode && (
                   <>
-                    <div className="flex gap-1">
+                    <div data-tour="chart-indicators" className="flex gap-1">
                       {/* MA 버튼 + 호버 시 설정 아이콘 */}
                       <div className="relative group/ma">
                         <Button
@@ -333,7 +335,7 @@ function ChartPage() {
                 )}
 
                 {/* 인터벌 선택 */}
-                <div className="flex gap-1">
+                <div data-tour="chart-intervals" className="flex gap-1">
                   {INTERVALS.map((iv) => (
                     <Button
                       key={iv.value}
@@ -419,7 +421,7 @@ function ChartPage() {
           {/* 일반 모드: 호가창 + 체결정보 (사이드) */}
           {!panelsBelow && (
             <>
-              <div className="min-w-0">
+              <div data-tour="chart-orderbook" className="min-w-0">
                 <OrderBook
                   data={{
                     symbol: selectedSymbol,
@@ -430,7 +432,7 @@ function ChartPage() {
                   height={sidePanelHeight}
                 />
               </div>
-              <div className="min-w-0">
+              <div data-tour="chart-trades" className="min-w-0">
                 <TradeHistory symbol={selectedSymbol} height={sidePanelHeight} />
               </div>
             </>

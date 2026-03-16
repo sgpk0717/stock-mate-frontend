@@ -156,7 +156,6 @@ export interface AlphaFactoryStartRequest {
   ic_threshold: number
   orthogonality_threshold: number
   enable_crossover: boolean
-  enable_causal: boolean
   max_cycles?: number
   data_interval: string
 }
