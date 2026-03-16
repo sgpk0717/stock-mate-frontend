@@ -556,6 +556,10 @@ function AlphaFactoryControl() {
       triggerWorkflow.mutate("resume")
     } else {
       triggerWorkflow.mutate("emergency_stop")
+      // 팩토리도 즉시 중지 (백엔드 emergency_stop에서도 중지하지만 이중 보장)
+      if (isRunning) {
+        stopFactory.mutate()
+      }
     }
   }
 
