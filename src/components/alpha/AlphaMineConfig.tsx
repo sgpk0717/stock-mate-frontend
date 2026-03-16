@@ -245,10 +245,10 @@ function AlphaMineConfig({ onStart, isLoading }: AlphaMineConfigProps) {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Switch checked={usePysr} onCheckedChange={setUsePysr} />
-          <Label className="text-xs">
-            PySR <Term>기호 회귀</Term> 사용 (Julia 필요)
+        <div className="flex items-center gap-2 opacity-50">
+          <Switch checked={false} disabled />
+          <Label className="text-xs text-muted-foreground">
+            PySR <Term>기호 회귀</Term> (미구현)
           </Label>
         </div>
 
