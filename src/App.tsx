@@ -13,6 +13,8 @@ import WorkflowPage from "@/pages/WorkflowPage"
 import DataExplorerPage from "@/pages/DataExplorerPage"
 import TelegramLogPage from "@/pages/TelegramLogPage"
 import SettingsPage from "@/pages/SettingsPage"
+import SimReplayPage from "@/pages/SimReplayPage"
+import SystemMapPage from "@/pages/SystemMapPage"
 
 function App() {
   return (
@@ -31,6 +33,8 @@ function App() {
           <Route path="/workflow" element={<WorkflowPage />} />
           <Route path="/data" element={<DataExplorerPage />} />
           <Route path="/telegram" element={<TelegramLogPage />} />
+          <Route path="/sim-replay" element={<SimReplayPage />} />
+          <Route path="/system" element={<SystemMapPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

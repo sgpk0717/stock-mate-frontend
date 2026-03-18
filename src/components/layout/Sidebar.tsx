@@ -12,6 +12,8 @@ import {
   LayoutDashboard,
   MessageSquare,
   Microscope,
+  Network,
+  PlayCircle,
   RefreshCcw,
   ScrollText,
   Settings,
@@ -64,9 +66,11 @@ const navItems: NavItem[] = [
   { label: <Term>시뮬레이션</Term>, icon: Globe, iconClass: "text-teal-400", to: "/simulation" },
   { label: <Term>자동매매</Term>, icon: Bot, iconClass: "text-indigo-400", to: "/trading" },
   { label: <Term>워크플로우</Term>, icon: RefreshCcw, iconClass: "text-orange-400", to: "/workflow" },
+  { label: "리플레이", icon: PlayCircle, iconClass: "text-rose-400", to: "/sim-replay" },
   { label: "데이터 탐색", icon: Database, iconClass: "text-slate-400", to: "/data" },
   { label: "주문내역", icon: ScrollText, iconClass: "text-gray-400", to: "/history" },
   { label: "텔레그램 로그", icon: MessageSquare, iconClass: "text-sky-400", to: "/telegram" },
+  { label: "시스템 맵", icon: Network, iconClass: "text-[#4056F4]", to: "/system" },
   { label: "설정", icon: Settings, iconClass: "text-zinc-400", to: "/settings" },
 ]
 
