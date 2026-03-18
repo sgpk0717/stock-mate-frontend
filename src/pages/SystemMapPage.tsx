@@ -1,6 +1,8 @@
+import { useState } from "react"
 import { useTopology } from "@/hooks/queries/use-system"
 import type { TopologyNode, TopologyEdge, TopologyEvent } from "@/api/system"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -444,6 +446,7 @@ function EventItem({ event }: { event: TopologyEvent }) {
 
 export default function SystemMapPage() {
   const { data, isLoading } = useTopology()
+  const [showDebug, setShowDebug] = useState(false)
 
   const nodes = data?.nodes ?? {}
   const edges = data?.edges ?? []
@@ -540,23 +543,29 @@ export default function SystemMapPage() {
             <CardTitle className="flex items-center gap-2 text-sm">
               <Zap className="h-4 w-4 text-[#E3B23C]" />
               최근 이벤트
-              <span className="ml-auto text-xs font-normal text-muted-foreground">
+              <span className="text-xs font-normal text-muted-foreground">
                 {events.length}건
               </span>
+              <Button
+                variant={showDebug ? "default" : "outline"}
+                size="sm"
+                className="ml-auto h-6 text-[10px] px-2"
+                onClick={() => setShowDebug((v) => !v)}
+              >
+                {showDebug ? "DEBUG ON" : "INFO"}
+              </Button>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-64">
-              {events.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">이벤트 없음</p>
-              ) : (
-                <div className="space-y-0.5">
-                  {events.map((evt, i) => (
-                    <EventItem key={i} event={evt} />
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
+            {events.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">이벤트 없음</p>
+            ) : (
+              <div className="space-y-0.5">
+                {events.map((evt, i) => (
+                  <EventItem key={i} event={evt} />
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -41,6 +41,7 @@ import {
   BarChart2,
   Cpu,
   Wrench,
+  TrendingUp,
 } from "lucide-react"
 
 // ─── 상수 ────────────────────────────────────────────────────────────────────
@@ -851,10 +852,24 @@ function TodayTimeline({
                           </>
                         ) : (
                           <>
-                            <Activity className="h-3 w-3 text-[#4056F4] shrink-0" />
+                            {item.eventType === "mining_cycle" ? (
+                              <Cpu className="h-3 w-3 text-indigo-500 shrink-0" />
+                            ) : item.eventType === "trade_tick" ? (
+                              <TrendingUp className="h-3 w-3 text-green-500 shrink-0" />
+                            ) : item.message?.includes("[ERROR]") ? (
+                              <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
+                            ) : (
+                              <Activity className="h-3 w-3 text-[#4056F4] shrink-0" />
+                            )}
                             {item.eventType && (
-                              <Badge variant="outline" className="text-[9px] py-0 shrink-0">
-                                {item.eventType}
+                              <Badge variant="outline" className={`text-[9px] py-0 shrink-0 ${
+                                item.eventType === "mining_cycle" ? "text-indigo-600 border-indigo-300" :
+                                item.eventType === "trade_tick" ? "text-green-600 border-green-300" :
+                                ""
+                              }`}>
+                                {item.eventType === "mining_cycle" ? "마이닝" :
+                                 item.eventType === "trade_tick" ? "매매" :
+                                 item.eventType}
                               </Badge>
                             )}
                           </>
