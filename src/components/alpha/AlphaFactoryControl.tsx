@@ -83,11 +83,7 @@ function FactoryRunningDashboard({ status }: { status: AlphaFactoryStatus }) {
             </span>
           </div>
         </div>
-        {config.context && (
-          <p className="mt-2 text-[10px] text-muted-foreground line-clamp-2">
-            {String(config.context)}
-          </p>
-        )}
+        {config.context && <ContextExpander text={String(config.context)} />}
       </div>
 
       {/* 핵심 지표 그리드 */}
@@ -781,6 +777,30 @@ function AlphaFactoryControl() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/** 실매매 피드백 접기/펼치기 */
+function ContextExpander({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div className="mt-2">
+      <pre
+        className={`text-[10px] text-muted-foreground whitespace-pre-wrap font-sans cursor-pointer ${
+          expanded ? "" : "line-clamp-2"
+        }`}
+        onClick={() => setExpanded((v) => !v)}
+      >
+        {text}
+      </pre>
+      <button
+        type="button"
+        className="mt-0.5 text-[10px] text-primary hover:underline"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        {expanded ? "접기" : "펼치기"}
+      </button>
     </div>
   )
 }

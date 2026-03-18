@@ -1,11 +1,15 @@
 import { useEffect, useRef } from "react"
 import {
   createChart,
+  createSeriesMarkers,
   CandlestickSeries,
   LineSeries,
   HistogramSeries,
   type IChartApi,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
+  type SeriesMarker,
+  type Time,
   type UTCTimestamp,
 } from "lightweight-charts"
 import type {
@@ -31,6 +35,7 @@ interface CandleChartProps {
   activeIndicators?: string[]
   maConfigs?: MALineConfig[]
   interval?: string
+  markers?: SeriesMarker<Time>[]
 }
 
 function CandleChart({
@@ -41,6 +46,7 @@ function CandleChart({
   activeIndicators = [],
   maConfigs,
   interval = "1d",
+  markers,
 }: CandleChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -53,6 +59,7 @@ function CandleChart({
     Map<string, ISeriesApi<"Line"> | ISeriesApi<"Histogram">>
   >(new Map())
   const macdPaneRef = useRef<number>(-1)
+  const markersPluginRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null)
 
   // 차트 인스턴스 생성 (mount 시 1회)
   useEffect(() => {
@@ -117,6 +124,10 @@ function CandleChart({
     return () => {
       observer.disconnect()
       indicatorSeriesRef.current.clear()
+      if (markersPluginRef.current) {
+        markersPluginRef.current.detach()
+        markersPluginRef.current = null
+      }
       chart.remove()
       chartRef.current = null
       seriesRef.current = null
@@ -432,6 +443,28 @@ function CandleChart({
     }[]
     histSeries.setData(histData)
   }
+
+  // 외부 마커 업데이트
+  useEffect(() => {
+    if (!seriesRef.current) return
+    if (markers && markers.length > 0) {
+      const sorted = [...markers].sort(
+        (a, b) => (a.time as number) - (b.time as number),
+      )
+      if (markersPluginRef.current) {
+        markersPluginRef.current.setMarkers(sorted)
+      } else {
+        markersPluginRef.current = createSeriesMarkers(
+          seriesRef.current,
+          sorted,
+        )
+      }
+    } else {
+      if (markersPluginRef.current) {
+        markersPluginRef.current.setMarkers([])
+      }
+    }
+  }, [markers, data])
 
   // 실시간 틱으로 마지막 캔들 업데이트
   useEffect(() => {

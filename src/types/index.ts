@@ -327,6 +327,9 @@ export interface TradeLog {
   timestamp: string
   reason?: string
   snapshot?: Record<string, number> | null
+  pnl_pct?: number | null
+  pnl_amount?: number | null
+  holding_minutes?: number | null
 }
 
 export interface KISBalance {
