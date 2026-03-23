@@ -143,10 +143,25 @@ export async function fetchBacktestRun(
   return apiFetch<BacktestRunResponse>(`/backtest/run/${runId}`)
 }
 
-export async function fetchBacktestRuns(
-  limit = 20,
-): Promise<BacktestRunSummary[]> {
-  return apiFetch<BacktestRunSummary[]>(`/backtest/runs?limit=${limit}`)
+export async function fetchBacktestRuns(params?: {
+  offset?: number
+  limit?: number
+  sort_by?: string
+  order?: string
+  status?: string
+  search?: string
+}): Promise<{ items: BacktestRunSummary[]; total: number }> {
+  const query = new URLSearchParams()
+  if (params?.offset !== undefined) query.set("offset", String(params.offset))
+  if (params?.limit !== undefined) query.set("limit", String(params.limit))
+  if (params?.sort_by) query.set("sort_by", params.sort_by)
+  if (params?.order) query.set("order", params.order)
+  if (params?.status) query.set("status", params.status)
+  if (params?.search) query.set("search", params.search)
+  const qs = query.toString()
+  return apiFetch<{ items: BacktestRunSummary[]; total: number }>(
+    `/backtest/runs${qs ? `?${qs}` : ""}`,
+  )
 }
 
 export async function deleteBacktestRun(runId: string): Promise<void> {

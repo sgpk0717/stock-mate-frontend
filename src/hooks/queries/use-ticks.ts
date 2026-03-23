@@ -21,6 +21,7 @@ export function useCandles(
     },
     enabled: !!symbol,
     placeholderData: keepPreviousData,
+    staleTime: 5 * 60 * 1000, // 5분간 캐시 유지 (같은 종목 재클릭 시 재호출 방지)
   })
 }
 

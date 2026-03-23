@@ -234,10 +234,16 @@ export interface BacktestRunSummary {
   status: string
   progress: number
   total_return: number | null
+  sharpe_ratio: number | null
   mdd: number | null
   win_rate: number | null
   total_trades: number | null
   created_at: string
+}
+
+export interface BacktestRunPage {
+  items: BacktestRunSummary[]
+  total: number
 }
 
 export interface TradeConditionResult {

@@ -46,7 +46,7 @@ function ProgramTradingTab({ symbol, start, end, page, pageSize, onPageChange, o
               {rows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="text-xs"><span className="font-medium">{r.name ?? r.symbol}</span>{r.name && <span className="ml-1 text-muted-foreground">{r.symbol}</span>}</TableCell>
-                  <TableCell className="font-mono text-xs">{r.dt.slice(0, 16).replace("T", " ")}</TableCell>
+                  <TableCell className="font-mono text-xs">{fmtAt(r.dt)}</TableCell>
                   <TableCell className="text-right font-mono text-xs">{formatNumber(r.pgm_buy_qty)}</TableCell>
                   <TableCell className="text-right font-mono text-xs">{formatNumber(r.pgm_sell_qty)}</TableCell>
                   <TableCell className={cn("text-right font-mono text-xs", netColor(r.pgm_net_qty))}>{formatNumber(r.pgm_net_qty)}</TableCell>

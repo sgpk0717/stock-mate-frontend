@@ -4,9 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Term } from "@/components/ui/term"
+import AlphaRanking from "@/components/trading/AlphaRanking"
 import ContextPanel from "@/components/trading/ContextPanel"
+import DecisionMonitor from "@/components/trading/DecisionMonitor"
 import ModeSwitch from "@/components/trading/ModeSwitch"
 import SessionCard from "@/components/trading/SessionCard"
+import TradeDailyHistory from "@/components/trading/TradeDailyHistory"
 import TradeJournalChart from "@/components/trading/TradeJournalChart"
 import {
   useKISBalance,
@@ -78,7 +81,9 @@ function TradingPage() {
       <Tabs defaultValue="sessions">
         <TabsList>
           <TabsTrigger value="sessions">실행 세션</TabsTrigger>
+          <TabsTrigger value="ranking">알파 랭킹</TabsTrigger>
           <TabsTrigger value="contexts">전략 관리</TabsTrigger>
+          <TabsTrigger value="history">매매 이력</TabsTrigger>
         </TabsList>
 
         {/* ── Tab 1: Sessions ── */}
@@ -114,14 +119,37 @@ function TradingPage() {
           )}
 
           {/* Selected session detail */}
-          {(selectedSession || effectiveSessionId) && sessions && sessions.length > 0 && (
-            <SessionDetail
-              sessionId={selectedSession ?? effectiveSessionId!}
-              trades={effectiveTrades ?? trades}
-              interval={sessionInterval}
-              balance={balance}
-            />
-          )}
+          {(selectedSession || effectiveSessionId) && sessions && sessions.length > 0 && (() => {
+            const sid = selectedSession ?? effectiveSessionId!
+            const s = sessions.find((s: Record<string, unknown>) => s.id === sid) as Record<string, string> | undefined
+            const tickSummary = s ? {
+              last_tick_at: s.last_tick_at,
+              bars_count: s.bars_count,
+              buy_signals: s.buy_signals,
+              sell_signals: s.sell_signals,
+              skip_buy: s.skip_buy,
+              hold_count: s.hold_count,
+              positions: s.positions as unknown as string,
+              max_positions: s.max_positions,
+              cash: s.cash,
+              trade_count: s.trade_count as unknown as string,
+              status_detail: s.status_detail,
+            } : undefined
+            return (
+              <SessionDetail
+                sessionId={sid}
+                trades={effectiveTrades ?? trades}
+                interval={sessionInterval}
+                balance={balance}
+                tickSummary={tickSummary}
+              />
+            )
+          })()}
+        </TabsContent>
+
+        {/* ── Tab: Alpha Ranking ── */}
+        <TabsContent value="ranking" className="pt-2">
+          <AlphaRanking />
         </TabsContent>
 
         {/* ── Tab 2: Context Management ── */}
@@ -129,6 +157,11 @@ function TradingPage() {
           <div data-tour="trading-context">
             <ContextPanel mode={mode} />
           </div>
+        </TabsContent>
+
+        {/* ── Tab 3: Daily Trade History ── */}
+        <TabsContent value="history">
+          <TradeDailyHistory />
         </TabsContent>
       </Tabs>
     </div>
@@ -142,22 +175,29 @@ interface SessionDetailProps {
   trades: import("@/types").TradeLog[] | undefined
   interval: string
   balance: import("@/types").KISBalance | undefined
+  tickSummary?: Record<string, string>
 }
 
-function SessionDetail({ sessionId, trades, interval, balance }: SessionDetailProps) {
+function SessionDetail({ sessionId, trades, interval, balance, tickSummary }: SessionDetailProps) {
   // Re-fetch trades for this specific session
   const { data: sessionTrades } = useSessionTrades(sessionId)
   const displayTrades = trades ?? sessionTrades ?? []
 
   return (
-    <Tabs defaultValue="journal">
+    <Tabs defaultValue="monitor">
       <TabsList variant="line">
+        <TabsTrigger value="monitor">모니터링</TabsTrigger>
         <TabsTrigger value="journal">매매일지 차트</TabsTrigger>
         <TabsTrigger value="trades">
           매매 기록{displayTrades.length > 0 && ` (${displayTrades.length})`}
         </TabsTrigger>
         <TabsTrigger value="positions">보유 포지션</TabsTrigger>
       </TabsList>
+
+      {/* Sub-tab: Decision Monitor */}
+      <TabsContent value="monitor" className="pt-2">
+        <DecisionMonitor sessionId={sessionId} tickSummary={tickSummary} />
+      </TabsContent>
 
       {/* Sub-tab: Trade Journal Chart */}
       <TabsContent value="journal" className="pt-2">

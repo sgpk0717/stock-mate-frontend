@@ -97,3 +97,83 @@ export async function fetchKISOrders(
 ): Promise<KISOrder[]> {
   return apiFetch<KISOrder[]>(`/trading/orders?is_mock=${isMock}`)
 }
+
+// ── 알파 스코어 랭킹 ────────────────────────────────────
+
+export interface AlphaCandidate {
+  symbol: string
+  name: string
+  score: number
+  close: string
+  rsi: string
+  volume_ratio: string
+  delta_to_buy?: number
+  delta_to_sell?: number
+}
+
+export interface AlphaRanking {
+  buy_candidates: AlphaCandidate[]
+  sell_candidates: AlphaCandidate[]
+  updated_at: string
+  version: number
+  scored_count: number
+}
+
+export async function fetchAlphaRanking(
+  topN: number = 10,
+): Promise<AlphaRanking> {
+  return apiFetch<AlphaRanking>(`/trading/alpha-ranking?top_n=${topN}`)
+}
+
+// ── 의사결정 로그 (모니터링) ────────────────────────────
+
+export interface DecisionLog {
+  timestamp: string
+  symbol: string
+  name: string
+  action: string
+  reason: string
+  signal: number
+  conditions?: Record<string, unknown>
+  snapshot?: Record<string, unknown>
+  sizing?: Record<string, unknown>
+  risk?: Record<string, unknown>
+}
+
+export async function fetchSessionDecisions(
+  sessionId: string,
+  opts?: { action?: string; symbol?: string; limit?: number },
+): Promise<DecisionLog[]> {
+  const params = new URLSearchParams()
+  if (opts?.action) params.set("action", opts.action)
+  if (opts?.symbol) params.set("symbol", opts.symbol)
+  if (opts?.limit) params.set("limit", String(opts.limit))
+  const qs = params.toString()
+  return apiFetch<DecisionLog[]>(
+    `/trading/session/${sessionId}/decisions${qs ? `?${qs}` : ""}`,
+  )
+}
+
+// ── 일자별 매매 히스토리 ────────────────────────────────
+
+export async function fetchTradingDayDetail(
+  date: string,
+): Promise<{
+  date: string
+  trade_count: number
+  trades: Array<{
+    id: string
+    context_id: string
+    symbol: string
+    side: string
+    step: string
+    qty: number
+    price: number
+    pnl_pct: number | null
+    pnl_amount: number | null
+    holding_minutes: number | null
+    executed_at: string | null
+  }>
+}> {
+  return apiFetch(`/trading/history/${date}`)
+}

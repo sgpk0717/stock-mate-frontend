@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   useWorkflowStatus,
   useWorkflowHistory,
@@ -7,6 +7,11 @@ import {
   useTriggerWorkflow,
   useMcpAudit,
   useTradingStatus,
+  useCollectors,
+  useRestartCollector,
+  useActiveJobs,
+  useTriggerCollect,
+  useCancelJob,
 } from "@/hooks/queries"
 import { useTelegramLogs } from "@/hooks/queries/use-telegram"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,7 +26,14 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { formatPercent } from "@/lib/format"
+import { formatPercent, formatCollectorTime, formatDateStr } from "@/lib/format"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { Input } from "@/components/ui/input"
+import { ko } from "date-fns/locale"
+import { format } from "date-fns"
+import type { ActiveJob } from "@/api/scheduler"
 import {
   CheckCircle2,
   Circle,
@@ -42,6 +54,9 @@ import {
   Cpu,
   Wrench,
   TrendingUp,
+  Play,
+  Square,
+  CalendarIcon,
 } from "lucide-react"
 
 // ─── 상수 ────────────────────────────────────────────────────────────────────
@@ -901,6 +916,452 @@ function TodayTimeline({
   )
 }
 
+// ─── Collectors Panel ─────────────────────────────────────────────────────────
+
+const COLLECTOR_STATUS_STYLE: Record<string, { bg: string; label: string }> = {
+  collecting: { bg: "bg-green-100 text-green-700", label: "수집 중" },
+  running: { bg: "bg-green-100 text-green-700", label: "실행 중" },
+  idle: { bg: "bg-gray-100 text-gray-600", label: "대기" },
+  waiting: { bg: "bg-gray-100 text-gray-500", label: "대기" },
+  completed: { bg: "bg-blue-100 text-blue-700", label: "완료" },
+  stopped: { bg: "bg-yellow-100 text-yellow-700", label: "종료" },
+  error: { bg: "bg-red-100 text-red-700", label: "오류" },
+  unknown: { bg: "bg-gray-50 text-gray-400", label: "알 수 없음" },
+}
+
+// 수집기 순서
+const COLLECTOR_ORDER = [
+  "intraday_candle",
+  "program_trading",
+  "daily_candle",
+  "minute_candle",
+  "news",
+  "margin_short",
+  "investor",
+  "dart_financial",
+]
+
+// 배치 수집기 ID (수동 트리거 대상)
+const BATCH_COLLECTORS = ["daily_candle", "minute_candle", "news", "margin_short", "investor", "dart_financial"]
+const COLLECTOR_LABELS: Record<string, string> = {
+  daily_candle: "일봉", minute_candle: "분봉", news: "뉴스",
+  margin_short: "신용/공매도", investor: "투자자 수급", dart_financial: "DART 재무",
+  intraday_candle: "장중 분봉", program_trading: "프로그램 매매",
+}
+
+const JOB_STATUS_STYLE: Record<string, { bg: string; label: string }> = {
+  running: { bg: "bg-green-100 text-green-700", label: "수집 중" },
+  cancelling: { bg: "bg-yellow-100 text-yellow-700", label: "중단 중" },
+  cancelled: { bg: "bg-gray-100 text-gray-500", label: "중단 완료" },
+  completed: { bg: "bg-blue-100 text-blue-700", label: "수집 완료" },
+  failed: { bg: "bg-red-100 text-red-700", label: "실패" },
+}
+
+function CollectorsPanel({
+  collectors,
+  schedulerRunning,
+  onRestart,
+  isRestarting,
+}: {
+  collectors: Record<string, import("@/api/system").CollectorInfo> | undefined
+  schedulerRunning: boolean
+  onRestart: (id: string) => void
+  isRestarting: boolean
+}) {
+  // 날짜 선택 상태
+  const [dateMode, setDateMode] = useState<"single" | "range" | "recent">("single")
+  const [singleDate, setSingleDate] = useState<Date | undefined>(undefined)
+  const [rangeFrom, setRangeFrom] = useState<Date | undefined>(undefined)
+  const [rangeTo, setRangeTo] = useState<Date | undefined>(undefined)
+  const [recentDays, setRecentDays] = useState(7)
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const [rangeFromOpen, setRangeFromOpen] = useState(false)
+  const [rangeToOpen, setRangeToOpen] = useState(false)
+
+  const { data: activeJobs } = useActiveJobs()
+  const triggerCollect = useTriggerCollect()
+  const cancelJob = useCancelJob()
+
+  // 날짜가 유효한지
+  const dateValid = useMemo(() => {
+    if (dateMode === "single") return !!singleDate
+    if (dateMode === "range") return !!rangeFrom && !!rangeTo
+    if (dateMode === "recent") return recentDays >= 1 && recentDays <= 365
+    return false
+  }, [dateMode, singleDate, rangeFrom, rangeTo, recentDays])
+
+  // 수집기가 실행 중인지 체크
+  const isCollectorBusy = (collectorId: string) =>
+    (activeJobs ?? []).some(
+      (j) => j.collector === collectorId && (j.status === "running" || j.status === "cancelling")
+    )
+
+  // 수집 트리거
+  const handleTrigger = (collectorId: string) => {
+    const fmtDate = (d: Date) => format(d, "yyyyMMdd")
+    const req: import("@/api/scheduler").ManualTriggerRequest = {
+      collector: collectorId,
+      mode: dateMode,
+    }
+    if (dateMode === "single" && singleDate) req.date = fmtDate(singleDate)
+    if (dateMode === "range" && rangeFrom && rangeTo) {
+      req.date_from = fmtDate(rangeFrom)
+      req.date_to = fmtDate(rangeTo)
+    }
+    if (dateMode === "recent") req.recent_days = recentDays
+    triggerCollect.mutate(req)
+  }
+
+  if (!collectors) return null
+
+  const entries = COLLECTOR_ORDER
+    .filter((id) => collectors[id])
+    .map((id) => ({ id, ...collectors[id] }))
+
+  const total = entries.length
+  const healthy = entries.filter(
+    (c) => c.status === "idle" || c.status === "completed" || c.status === "collecting" || c.status === "running" || c.status === "waiting"
+  ).length
+  const errorCount = entries.filter((c) => c.status === "error").length
+
+  // 날짜 선택 라벨
+  const dateSummary = (() => {
+    if (dateMode === "single") return singleDate ? format(singleDate, "yyyy-MM-dd") : "날짜 미선택"
+    if (dateMode === "range") {
+      if (rangeFrom && rangeTo) return `${format(rangeFrom, "yy.MM.dd")} ~ ${format(rangeTo, "yy.MM.dd")}`
+      return "기간 미선택"
+    }
+    return `최근 ${recentDays}일`
+  })()
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-sm">데이터 수집 현황</CardTitle>
+            <Badge variant="outline" className="text-[10px]">
+              {healthy}/{total} 정상
+              {errorCount > 0 && ` · ${errorCount} 오류`}
+            </Badge>
+          </div>
+          <Badge variant={schedulerRunning ? "default" : "secondary"} className="text-[10px]">
+            {schedulerRunning ? "스케줄러 ON" : "스케줄러 OFF"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* ── 날짜 선택 UI ── */}
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-2.5">
+          <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+          <Select value={dateMode} onValueChange={(v) => setDateMode(v as typeof dateMode)}>
+            <SelectTrigger className="h-7 w-[110px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="single">특정일자</SelectItem>
+              <SelectItem value="range">기간</SelectItem>
+              <SelectItem value="recent">최근 N일</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {dateMode === "single" && (
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <button className="flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1 text-xs hover:bg-muted">
+                  {singleDate ? format(singleDate, "yyyy-MM-dd") : "날짜 선택"}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={singleDate}
+                  onSelect={(d) => { setSingleDate(d); setCalendarOpen(false) }}
+                  locale={ko}
+                  defaultMonth={singleDate ?? new Date()}
+                />
+              </PopoverContent>
+            </Popover>
+          )}
+
+          {dateMode === "range" && (
+            <div className="flex items-center gap-1">
+              <Popover open={rangeFromOpen} onOpenChange={setRangeFromOpen}>
+                <PopoverTrigger asChild>
+                  <button className="rounded-md border bg-background px-2.5 py-1 text-xs hover:bg-muted">
+                    {rangeFrom ? format(rangeFrom, "yy.MM.dd") : "시작일"}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={rangeFrom}
+                    onSelect={(d) => { setRangeFrom(d); setRangeFromOpen(false) }}
+                    locale={ko}
+                  />
+                </PopoverContent>
+              </Popover>
+              <span className="text-xs text-muted-foreground">~</span>
+              <Popover open={rangeToOpen} onOpenChange={setRangeToOpen}>
+                <PopoverTrigger asChild>
+                  <button className="rounded-md border bg-background px-2.5 py-1 text-xs hover:bg-muted">
+                    {rangeTo ? format(rangeTo, "yy.MM.dd") : "종료일"}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={rangeTo}
+                    onSelect={(d) => { setRangeTo(d); setRangeToOpen(false) }}
+                    locale={ko}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+
+          {dateMode === "recent" && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">최근</span>
+              <Input
+                type="number"
+                min={1}
+                max={365}
+                value={recentDays}
+                onChange={(e) => setRecentDays(Math.max(1, Math.min(365, Number(e.target.value) || 1)))}
+                className="h-7 w-16 text-xs"
+              />
+              <span className="text-xs text-muted-foreground">일</span>
+            </div>
+          )}
+
+          <span className="ml-auto text-[10px] text-muted-foreground">{dateSummary}</span>
+        </div>
+
+        {/* ── 수집기 카드 그리드 ── */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {entries.map((c) => {
+            const style = COLLECTOR_STATUS_STYLE[c.status] ?? COLLECTOR_STATUS_STYLE.unknown
+            const isError = c.status === "error"
+            const isBatch = c.type === "batch"
+            const busy = isCollectorBusy(c.id)
+            const canTrigger = isBatch && dateValid && !busy
+            const hasProgress = isBatch && (c.total ?? 0) > 0
+
+            const progressPct = hasProgress
+              ? Math.min(100, Math.round(((c.completed ?? 0) / (c.total ?? 1)) * 100))
+              : 0
+
+            return (
+              <div
+                key={c.id}
+                className={`rounded-lg border p-3 transition-colors ${
+                  isError ? "border-red-200 bg-red-50/50" : "hover:bg-muted/30"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{c.name}</span>
+                  <Badge className={`text-[10px] ${style.bg}`}>{style.label}</Badge>
+                </div>
+
+                {hasProgress && c.status === "running" && (
+                  <div className="mt-2">
+                    <div className="h-1.5 w-full rounded-full bg-gray-200">
+                      <div
+                        className="h-1.5 rounded-full bg-[#4056F4] transition-all duration-500"
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                    <p className="mt-0.5 text-right text-[10px] text-muted-foreground">
+                      {c.completed?.toLocaleString()}/{c.total?.toLocaleString()} ({progressPct}%)
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                  {c.last_at && <span>최근 {formatCollectorTime(c.last_at)}</span>}
+                  {c.type === "realtime" && c.last_count != null && c.last_count > 0 && (
+                    <span>{c.last_count.toLocaleString()}건</span>
+                  )}
+                  {c.type === "realtime" && (c.symbols_total ?? 0) > 0 && (
+                    <span>{c.symbols_total}종목</span>
+                  )}
+                  {c.type === "realtime" && (c.daily_rounds ?? 0) > 0 && (
+                    <span>{c.daily_rounds}라운드</span>
+                  )}
+                  {isBatch && c.status === "completed" && c.total != null && (
+                    <span>{c.total.toLocaleString()}건 완료</span>
+                  )}
+                  {(c.next_at || c.next_run_at) && (
+                    <span>다음 {formatCollectorTime(c.next_at || c.next_run_at || "")}</span>
+                  )}
+                </div>
+
+                {isError && c.error && (
+                  <p className="mt-1 truncate text-[10px] text-red-600" title={c.error}>{c.error}</p>
+                )}
+
+                {/* 버튼 영역 */}
+                <div className="mt-2 flex gap-1.5">
+                  {isBatch && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 flex-1 text-[11px]"
+                      onClick={() => handleTrigger(c.id)}
+                      disabled={!canTrigger || triggerCollect.isPending}
+                    >
+                      <Play className="mr-1 h-3 w-3" />
+                      수집
+                    </Button>
+                  )}
+                  {(isError || c.status === "stopped") && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 flex-1 text-[11px]"
+                      onClick={() => onRestart(c.id)}
+                      disabled={isRestarting}
+                    >
+                      <Wrench className="mr-1 h-3 w-3" />
+                      재시작
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* ── 활성 수집 작업 패널 ── */}
+        <ActiveJobsPanel jobs={activeJobs ?? []} onCancel={(id) => cancelJob.mutate(id)} isCancelling={cancelJob.isPending} />
+      </CardContent>
+    </Card>
+  )
+}
+
+/** 활성/최근 완료 수집 작업 목록 */
+function ActiveJobsPanel({
+  jobs,
+  onCancel,
+  isCancelling,
+}: {
+  jobs: ActiveJob[]
+  onCancel: (id: string) => void
+  isCancelling: boolean
+}) {
+  if (jobs.length === 0) return null
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-muted-foreground">수집 작업</p>
+      {jobs.map((j) => {
+        const st = JOB_STATUS_STYLE[j.status] ?? JOB_STATUS_STYLE.failed
+        const label = COLLECTOR_LABELS[j.collector] ?? j.collector
+        const isRunning = j.status === "running" || j.status === "cancelling"
+
+        // 날짜 범위 표시
+        const dateRange = j.dates.length > 1
+          ? `${formatDateStr(j.dates[j.dates.length - 1])} ~ ${formatDateStr(j.dates[0])}`
+          : j.dates.length === 1
+            ? formatDateStr(j.dates[0])
+            : ""
+
+        // 진행률 (날짜 기준)
+        const datePct = j.date_total > 0
+          ? Math.min(100, Math.round((j.date_progress / j.date_total) * 100))
+          : 0
+
+        // 항목 기준 진행률 텍스트
+        const itemProgress = j.total > 0
+          ? `${j.completed.toLocaleString()}/${j.total.toLocaleString()}건`
+          : ""
+        const dateProgressText = j.date_total > 1
+          ? `${j.date_progress}/${j.date_total}일`
+          : ""
+        const progressText = [dateProgressText, itemProgress].filter(Boolean).join(" · ")
+
+        return (
+          <div key={j.job_id} className="rounded-lg border p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{label}</span>
+                <Badge className={`text-[10px] ${st.bg}`}>{st.label}</Badge>
+                {j.source === "auto" && (
+                  <Badge variant="outline" className="text-[10px]">자동</Badge>
+                )}
+              </div>
+              {j.status === "running" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-[11px] text-red-600 hover:text-red-700"
+                  onClick={() => onCancel(j.job_id)}
+                  disabled={isCancelling}
+                >
+                  <Square className="mr-1 h-3 w-3" />
+                  중단하기
+                </Button>
+              )}
+            </div>
+
+            {/* 진행 바 */}
+            {isRunning && (
+              <div className="mt-2">
+                <div className="h-2 w-full rounded-full bg-gray-200">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-500 ${
+                      j.status === "cancelling" ? "bg-yellow-500" : "bg-[#4056F4]"
+                    }`}
+                    style={{ width: `${datePct}%` }}
+                  />
+                </div>
+                {progressText && (
+                  <p className="mt-0.5 text-right text-[10px] text-muted-foreground">{progressText}</p>
+                )}
+              </div>
+            )}
+
+            {/* 완료 상태 진행 바 */}
+            {!isRunning && j.status === "completed" && (
+              <div className="mt-2">
+                <div className="h-2 w-full rounded-full bg-blue-100">
+                  <div className="h-2 w-full rounded-full bg-blue-400" />
+                </div>
+                {j.completed > 0 && (
+                  <p className="mt-0.5 text-right text-[10px] text-muted-foreground">
+                    {j.completed.toLocaleString()}건 완료{j.failed > 0 && ` · ${j.failed}건 실패`}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* 날짜 범위 + 에러 */}
+            <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+              {dateRange && <span>{dateRange}</span>}
+              {j.started_at && <span>· {formatCollectorTime(j.started_at)}</span>}
+            </div>
+            {j.error && (
+              <p className="mt-1 truncate text-[10px] text-red-600" title={j.error}>{j.error}</p>
+            )}
+
+            {/* 작업 로그 */}
+            {j.logs && j.logs.length > 0 && (
+              <div className="mt-2 max-h-32 overflow-y-auto rounded border bg-gray-950 p-2">
+                {j.logs.map((line, idx) => (
+                  <p key={idx} className="font-mono text-[10px] leading-4 text-gray-300">
+                    {line}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 function WorkflowPage() {
@@ -913,6 +1374,8 @@ function WorkflowPage() {
   const { data: telegramLogs } = useTelegramLogs({ limit: 100 })
   const { data: mcpAuditLogs } = useMcpAudit({ limit: 100 })
   const { data: tradingSessions } = useTradingStatus()
+  const { data: collectorsData } = useCollectors()
+  const restartCollector = useRestartCollector()
   const trigger = useTriggerWorkflow()
 
   // 오늘 워크플로우 run
@@ -1041,6 +1504,14 @@ function WorkflowPage() {
           execution_ms: number | null
           created_at: string
         }[]}
+      />
+
+      {/* 데이터 수집 현황 */}
+      <CollectorsPanel
+        collectors={collectorsData?.collectors}
+        schedulerRunning={collectorsData?.scheduler_running ?? false}
+        onRestart={(id) => restartCollector.mutate(id)}
+        isRestarting={restartCollector.isPending}
       />
 
       {/* 수동 트리거 */}

@@ -19,6 +19,7 @@ import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import CandleChart from "@/components/chart/CandleChart"
 import StockSearch from "@/components/stock/StockSearch"
+import UniverseReplayPanel from "@/components/simulation/UniverseReplay"
 import type { CandleData } from "@/types"
 import type { SeriesMarker, Time } from "lightweight-charts"
 
@@ -75,6 +76,9 @@ function Tip({ children, text }: { children: React.ReactNode; text: string }) {
 }
 
 export default function SimReplayPage() {
+  // 모드 전환 (단일종목 vs 유니버스)
+  const [replayMode, setReplayMode] = useState<"single" | "universe">("single")
+
   // 공통
   const [symbol, setSymbol] = useState("005930")
   const [speed, setSpeed] = useState(0.3)
@@ -124,7 +128,7 @@ export default function SimReplayPage() {
   const candlesRef = useRef<CandleData[]>([])
 
   const loadHistory = useCallback(() => {
-    fetch(`${API_URL}/sim-replay/runs?limit=20`)
+    fetch(`${API_URL}/sim-replay/runs?limit=20&mode=single`)
       .then(r => r.json())
       .then(d => setHistory(d.items || []))
       .catch(() => {})
@@ -310,7 +314,36 @@ export default function SimReplayPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-bold">시뮬레이션 리플레이</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-bold">시뮬레이션 리플레이</h1>
+        <div className="flex gap-1 rounded-lg border bg-muted p-0.5">
+          <button
+            onClick={() => setReplayMode("single")}
+            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+              replayMode === "single"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            단일 종목
+          </button>
+          <button
+            onClick={() => setReplayMode("universe")}
+            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+              replayMode === "universe"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            유니버스
+          </button>
+        </div>
+      </div>
+
+      {replayMode === "universe" ? (
+        <UniverseReplayPanel />
+      ) : (
+      <>
 
       <Card>
         <CardContent className="pt-4 space-y-3">
@@ -653,6 +686,8 @@ export default function SimReplayPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+      </>
       )}
     </div>
   )

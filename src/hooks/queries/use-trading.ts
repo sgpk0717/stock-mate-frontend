@@ -3,8 +3,10 @@ import {
   createContextFromBacktest,
   createTradingContext,
   deleteTradingContext,
+  fetchAlphaRanking,
   fetchKISBalance,
   fetchKISOrders,
+  fetchSessionDecisions,
   fetchSessionTrades,
   fetchTradingContexts,
   fetchTradingSession,
@@ -112,5 +114,35 @@ export function useKISOrders(isMock = true) {
     queryKey: ["kis-orders", isMock],
     queryFn: () => fetchKISOrders(isMock),
     staleTime: 10_000,
+  })
+}
+
+export function useAlphaRanking(topN: number = 10) {
+  return useQuery({
+    queryKey: ["alpha-ranking", topN],
+    queryFn: () => fetchAlphaRanking(topN),
+    refetchInterval: 5_000,
+  })
+}
+
+export function useSessionDecisions(
+  sessionId: string | null,
+  opts?: { action?: string; limit?: number },
+) {
+  return useQuery({
+    queryKey: ["session-decisions", sessionId, opts?.action],
+    queryFn: () => fetchSessionDecisions(sessionId!, opts),
+    enabled: !!sessionId,
+    refetchInterval: 5_000,
+  })
+}
+
+export function useTradingDayDetail(date: string | null) {
+  return useQuery({
+    queryKey: ["trading-day-detail", date],
+    queryFn: () =>
+      import("@/api/trading").then((m) => m.fetchTradingDayDetail(date!)),
+    enabled: !!date,
+    staleTime: 60_000,
   })
 }
