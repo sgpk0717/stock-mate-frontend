@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import StrategyChat from "@/components/backtest/StrategyChat"
 import BacktestConfig from "@/components/backtest/BacktestConfig"
@@ -6,6 +6,7 @@ import BacktestEquityCurve from "@/components/backtest/BacktestEquityCurve"
 import BacktestHistory from "@/components/backtest/BacktestHistory"
 import BacktestProgress from "@/components/backtest/BacktestProgress"
 import BacktestSummaryCards from "@/components/backtest/BacktestSummaryCards"
+import BacktestAnalytics from "@/components/backtest/BacktestAnalytics"
 import BacktestTradeTable from "@/components/backtest/BacktestTradeTable"
 import { Button } from "@/components/ui/button"
 import { Term } from "@/components/ui/term"
@@ -98,8 +99,14 @@ function BacktestPage() {
     )
   }
 
+  const resultRef = useRef<HTMLDivElement>(null)
+
   function handleSelectRun(runId: string) {
     setActiveRunId(runId)
+    // 결과 영역으로 스크롤
+    setTimeout(() => {
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }, 100)
   }
 
   const handleCompleted = useCallback(() => {
@@ -115,8 +122,8 @@ function BacktestPage() {
     <div className="space-y-6">
       <h1 className="text-lg font-bold"><Term>백테스트</Term></h1>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        {/* 왼쪽: 전략 설정 + 결과 */}
+      <div className="space-y-6">
+        {/* 전략 설정 + 결과 */}
         <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
             <StrategyChat onStrategyReady={handleStrategyReady} />
@@ -149,6 +156,14 @@ function BacktestPage() {
             runId={activeRunId}
             status={activeRun?.status ?? null}
             onCompleted={handleCompleted}
+            config={{
+              strategyName: strategy?.name ?? activeRun?.strategy_name ?? "",
+              startDate,
+              endDate,
+              initialCapital,
+              maxPositions,
+              positionSizePct,
+            }}
           />
 
           {/* 에러 메시지 */}
@@ -161,8 +176,16 @@ function BacktestPage() {
           {/* 결과 요약 */}
           {activeRun?.status === "COMPLETED" && (
             <>
-              <div className="flex items-center justify-between" data-tour="bt-summary">
-                <BacktestSummaryCards metrics={activeRun.metrics} />
+              <div ref={resultRef} data-tour="bt-summary">
+                <BacktestSummaryCards
+                  metrics={activeRun.metrics}
+                  strategyJson={activeRun.strategy_json}
+                  startDate={activeRun.start_date}
+                  endDate={activeRun.end_date}
+                  initialCapital={activeRun.initial_capital}
+                  maxPositions={Number(maxPositions)}
+                  positionSizePct={Number(positionSizePct) / 100}
+                />
               </div>
               <div className="flex justify-end gap-2">
                 <Button
@@ -206,12 +229,17 @@ function BacktestPage() {
                   trades={activeRun.trades_summary}
                 />
               </div>
+              <BacktestAnalytics
+                trades={activeRun.trades_summary}
+                equityCurve={activeRun.equity_curve}
+                interval={strategy?.timeframe ?? "1d"}
+              />
               <BacktestTradeTable trades={activeRun.trades_summary} />
             </>
           )}
         </div>
 
-        {/* 오른쪽: 실행 기록 */}
+        {/* 실행 기록 (전체 너비) */}
         <div data-tour="bt-history">
           <BacktestHistory
             selectedRunId={activeRunId}

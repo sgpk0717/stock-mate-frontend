@@ -22,12 +22,14 @@ const MARKER_COLORS: Record<string, string> = {
   "S-HALF": "#4056F4",
   "S-TRAIL": "#22c55e",
   "S-STOP": "#ef4444",
+  "S-EOD": "#f59e0b",
 }
 
 const MARKER_LABELS: Record<string, string> = {
   "S-HALF": "익절",
   "S-TRAIL": "트레일링",
   "S-STOP": "손절",
+  "S-EOD": "장종료",
 }
 
 function BacktestEquityCurve({ equityCurve, trades }: BacktestEquityCurveProps) {

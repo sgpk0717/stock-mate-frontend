@@ -33,6 +33,7 @@ const STEP_BADGE: Record<
   "ORPHAN-SELL": { label: "데이터소실", variant: "destructive" },
   "STOP-LOSS": { label: "손절", variant: "destructive" },
   "CIRCUIT-BREAKER": { label: "서킷브레이커", variant: "destructive" },
+  "S-EOD": { label: "장종료", variant: "secondary" },
   FINAL: { label: "종료청산", variant: "outline" },
 }
 

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   deleteBacktestRun,
   fetchBacktestRun,
@@ -46,10 +46,29 @@ export function useBacktestRun(runId: string | null) {
   })
 }
 
-export function useBacktestRuns() {
+export function useBacktestRuns(params?: {
+  page?: number
+  limit?: number
+  sort_by?: string
+  order?: string
+  status?: string
+  search?: string
+}) {
+  const page = params?.page ?? 0
+  const limit = params?.limit ?? 20
+  const offset = page * limit
   return useQuery({
-    queryKey: ["backtest-runs"],
-    queryFn: () => fetchBacktestRuns(),
+    queryKey: ["backtest-runs", { ...params, offset, limit }],
+    queryFn: () =>
+      fetchBacktestRuns({
+        offset,
+        limit,
+        sort_by: params?.sort_by,
+        order: params?.order,
+        status: params?.status,
+        search: params?.search,
+      }),
+    placeholderData: keepPreviousData,
   })
 }
 
