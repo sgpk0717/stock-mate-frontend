@@ -21,7 +21,10 @@ import {
   startFactory,
   stopFactory,
   fetchFactoryStatus,
+  startAutoOptimize,
+  fetchAutoOptimizeStatus,
   buildComposite,
+  fetchCompositeFactors,
   fetchCorrelation,
   fetchUniverses,
   createFactorChat,
@@ -32,6 +35,7 @@ import type {
   AlphaMineRequest,
   AlphaFactorBacktestRequest,
   AlphaFactoryStartRequest,
+  AutoOptimizeRequest,
   CompositeFactorBuildRequest,
 } from "@/types/alpha"
 
@@ -96,6 +100,7 @@ export function useAlphaFactors(params?: {
   min_ic?: number
   causal_robust?: boolean
   interval?: string
+  search?: string
   sort_by?: string
   order?: string
   page?: number
@@ -112,6 +117,7 @@ export function useAlphaFactors(params?: {
         min_ic: params?.min_ic,
         causal_robust: params?.causal_robust,
         interval: params?.interval,
+        search: params?.search,
         sort_by: params?.sort_by,
         order: params?.order,
         offset,
@@ -248,6 +254,42 @@ export function useCorrelation(factorIds: string[]) {
   })
 }
 
+export function useStartAutoOptimize() {
+  return useMutation({
+    mutationFn: (data?: AutoOptimizeRequest) => startAutoOptimize(data),
+  })
+}
+
+export function useAutoOptimizeStatus(jobId: string | null) {
+  const qc = useQueryClient()
+  return useQuery({
+    queryKey: ["auto-optimize-status", jobId],
+    queryFn: () => fetchAutoOptimizeStatus(jobId!),
+    enabled: !!jobId,
+    retry: false, // 404 시 재시도 안 함
+    refetchInterval: (query) => {
+      if (query.state.error) return false // 에러(404 등) 시 폴링 중단
+      const status = query.state.data?.status
+      if (status === "completed" || status === "failed") {
+        if (status === "completed") {
+          qc.invalidateQueries({ queryKey: ["alpha-factors"] })
+          qc.invalidateQueries({ queryKey: ["composite-factors"] })
+        }
+        return false
+      }
+      return 2000
+    },
+  })
+}
+
+export function useCompositeFactors() {
+  return useQuery({
+    queryKey: ["composite-factors"],
+    queryFn: fetchCompositeFactors,
+    staleTime: 30_000,
+  })
+}
+
 // Factor AI Chat
 
 export function useCreateFactorChat() {
@@ -272,5 +314,14 @@ export function useSaveFactorChat() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["alpha-factors"] })
     },
+  })
+}
+
+export function useImprovementHistory() {
+  return useQuery({
+    queryKey: ["alpha-improvement-history"],
+    queryFn: () =>
+      import("@/api/alpha").then((m) => m.fetchImprovementHistory()),
+    staleTime: 60_000,
   })
 }

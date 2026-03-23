@@ -198,6 +198,63 @@ export interface CorrelationMatrix {
   matrix: number[][]
 }
 
+// ── 자동 최적 복합 팩터 ──
+
+export interface AutoOptimizeRequest {
+  min_ic?: number
+  min_turnover?: number
+  max_k?: number
+  lambda_decorr?: number
+  shrinkage_delta?: number
+  interval?: string
+  causal_only?: boolean
+}
+
+export interface SelectionStep {
+  step: number
+  selected_id: string
+  selected_name: string
+  niche: string
+  ic: number
+  reason: string
+  cumulative_ir2: number
+  avg_correlation: number
+}
+
+export interface OptimizationResult {
+  k: number
+  factor_ids: string[]
+  factor_names: string[]
+  weights: Record<string, number>
+  composite_ic: number
+  composite_icir: number
+  composite_sharpe: number
+  avg_correlation: number
+  expression_str: string
+}
+
+export interface AutoOptimizeResponse {
+  best_k: number
+  results: OptimizationResult[]
+  selection_log: SelectionStep[]
+  correlation_matrix: CorrelationMatrix
+  candidate_count: number
+  logs: string[]
+}
+
+// ── 자동 최적 비동기 잡 ──
+
+export interface AutoOptimizeJobResponse {
+  job_id: string
+}
+
+export interface AutoOptimizeStatusResponse {
+  status: "pending" | "running" | "completed" | "failed"
+  result: AutoOptimizeResponse | null
+  error: string | null
+  logs: string[]
+}
+
 // ── Iteration 로그 (탐색 과정 투명성) ──
 
 export interface IterationAttempt {
@@ -240,4 +297,51 @@ export interface MiningIterationLogs {
   run_id: string
   iterations: IterationLog[]
   summary: MiningLogSummary
+}
+
+// ── 마이닝 개선 히스토리 ──
+
+export interface MetricsSnapshot {
+  total_factors?: number
+  generations?: number
+  avg_ic?: number
+  max_ic?: number
+  avg_sharpe?: number
+  max_sharpe?: number
+  avg_icir?: number
+  max_icir?: number
+  volume_pct?: number
+  family_count?: number
+  causal_pass_pct?: number
+}
+
+export interface VerificationCriterion {
+  label: string
+  target: string
+  actual: string
+  passed: boolean | null
+}
+
+export interface ImprovementRound {
+  round: number
+  title: string
+  datetime: string
+  status: 'pending' | 'success' | 'partial_success' | 'failure'
+  diagnosis: {
+    summary: string
+    metrics_before: MetricsSnapshot
+  }
+  changes: string[]
+  files_modified: string[]
+  verification: {
+    cycles_elapsed: number
+    generations_range: string
+    metrics_after: MetricsSnapshot | null
+    criteria: VerificationCriterion[]
+  }
+  lesson: string | null
+}
+
+export interface ImprovementHistory {
+  rounds: ImprovementRound[]
 }

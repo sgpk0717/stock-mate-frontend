@@ -9,12 +9,17 @@ import type {
   AlphaMiningRun,
   AlphaMiningRunSummary,
   AlphaFactorBacktestRequest,
+  AutoOptimizeJobResponse,
+  AutoOptimizeRequest,
+  AutoOptimizeResponse,
+  AutoOptimizeStatusResponse,
   CausalValidationJob,
   CausalValidationProgress,
   CausalValidationResponse,
   CompositeFactorBuildRequest,
   CompositeFactorResponse,
   CorrelationMatrix,
+  ImprovementHistory,
   MiningIterationLogs,
   UniverseOption,
 } from "@/types/alpha"
@@ -61,6 +66,7 @@ export async function fetchAlphaFactors(params?: {
   min_ic?: number
   causal_robust?: boolean
   interval?: string
+  search?: string
   sort_by?: string
   order?: string
   offset?: number
@@ -73,6 +79,7 @@ export async function fetchAlphaFactors(params?: {
   if (params?.causal_robust !== undefined)
     query.set("causal_robust", String(params.causal_robust))
   if (params?.interval) query.set("interval", params.interval)
+  if (params?.search) query.set("search", params.search)
   if (params?.sort_by) query.set("sort_by", params.sort_by)
   if (params?.order) query.set("order", params.order)
   if (params?.offset !== undefined)
@@ -275,4 +282,35 @@ export async function fetchCorrelation(
     method: "POST",
     body: JSON.stringify({ factor_ids: factorIds }),
   })
+}
+
+export async function startAutoOptimize(
+  data?: AutoOptimizeRequest,
+): Promise<AutoOptimizeJobResponse> {
+  return apiFetch<AutoOptimizeJobResponse>("/alpha/portfolio/auto-optimize", {
+    method: "POST",
+    body: JSON.stringify(data ?? {}),
+  })
+}
+
+export async function fetchAutoOptimizeStatus(
+  jobId: string,
+): Promise<AutoOptimizeStatusResponse> {
+  return apiFetch<AutoOptimizeStatusResponse>(
+    `/alpha/portfolio/auto-optimize/${jobId}`,
+  )
+}
+
+export async function fetchCompositeFactor(
+  factorId: string,
+): Promise<AlphaFactor> {
+  return apiFetch<AlphaFactor>(`/alpha/factors/${factorId}`)
+}
+
+export async function fetchCompositeFactors(): Promise<AlphaFactorPage> {
+  return apiFetch<AlphaFactorPage>("/alpha/factors?factor_type=composite&limit=50")
+}
+
+export async function fetchImprovementHistory(): Promise<ImprovementHistory> {
+  return apiFetch<ImprovementHistory>("/alpha/improvement-history")
 }
