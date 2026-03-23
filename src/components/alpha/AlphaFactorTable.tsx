@@ -42,6 +42,57 @@ interface AlphaFactorTableProps {
   onCausalFilterChange?: (value: string) => void
   intervalFilter?: string
   onIntervalFilterChange?: (value: string) => void
+  searchQuery?: string
+  onSearchChange?: (query: string) => void
+}
+
+function PaginationBar({
+  page,
+  totalPages,
+  onPageChange,
+  pageSize,
+  onPageSizeChange,
+}: {
+  page: number
+  totalPages: number
+  onPageChange: (page: number) => void
+  pageSize?: number
+  onPageSizeChange?: (size: number) => void
+}) {
+  return (
+    <div className="flex items-center justify-between px-3 py-2">
+      <button
+        onClick={() => onPageChange(page - 1)}
+        disabled={page <= 0}
+        className="rounded px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-30"
+      >
+        이전
+      </button>
+      <div className="flex items-center gap-3">
+        {onPageSizeChange && (
+          <select
+            value={pageSize ?? 100}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            className="rounded border bg-background px-1.5 py-0.5 text-xs"
+          >
+            {[10, 20, 50, 100, 200, 500, 1000].map((n) => (
+              <option key={n} value={n}>{n}개</option>
+            ))}
+          </select>
+        )}
+        <span className="text-xs text-muted-foreground">
+          {page + 1} / {totalPages || 1}
+        </span>
+      </div>
+      <button
+        onClick={() => onPageChange(page + 1)}
+        disabled={!totalPages || page >= totalPages - 1}
+        className="rounded px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-30"
+      >
+        다음
+      </button>
+    </div>
+  )
 }
 
 const COL_COUNT = 11
@@ -123,6 +174,8 @@ function AlphaFactorTable({
   onIntervalFilterChange,
   pageSize,
   onPageSizeChange,
+  searchQuery,
+  onSearchChange,
 }: AlphaFactorTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -192,6 +245,54 @@ function AlphaFactorTable({
 
   return (
     <div className="overflow-auto rounded-lg border">
+      {/* 상단 검색 + 페이지네이션 */}
+      {(onSearchChange || (onPageChange && page != null)) && (
+        <div className="flex items-center gap-3 border-b px-3 py-2">
+          {onSearchChange && (
+            <div className="relative flex-1">
+              <svg
+                className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery ?? ""}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder="팩터 이름 또는 수식 검색..."
+                className="w-full rounded border bg-background py-1 pl-8 pr-2 text-xs placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/30"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => onSearchChange("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )}
+          {factors.length > 0 && onPageChange && page != null && (
+            <div className="shrink-0">
+              <PaginationBar
+                page={page}
+                totalPages={totalPages ?? 1}
+                onPageChange={onPageChange}
+                pageSize={pageSize}
+                onPageSizeChange={onPageSizeChange}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 선택 액션 바 */}
       {selected.size > 0 && (
         <div className="border-b bg-muted/60 px-3 py-2">
@@ -369,39 +470,16 @@ function AlphaFactorTable({
         </tbody>
       </table>
 
-      {/* 페이지네이션 */}
+      {/* 하단 페이지네이션 */}
       {factors.length > 0 && onPageChange && page != null && (
-        <div className="flex items-center justify-between border-t px-3 py-2">
-          <button
-            onClick={() => onPageChange(page - 1)}
-            disabled={page <= 0}
-            className="rounded px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-30"
-          >
-            이전
-          </button>
-          <div className="flex items-center gap-3">
-            {onPageSizeChange && (
-              <select
-                value={pageSize ?? 100}
-                onChange={(e) => onPageSizeChange(Number(e.target.value))}
-                className="rounded border bg-background px-1.5 py-0.5 text-xs"
-              >
-                {[10, 20, 50, 100, 200, 500, 1000].map((n) => (
-                  <option key={n} value={n}>{n}개</option>
-                ))}
-              </select>
-            )}
-            <span className="text-xs text-muted-foreground">
-              {page + 1} / {totalPages ?? 1}
-            </span>
-          </div>
-          <button
-            onClick={() => onPageChange(page + 1)}
-            disabled={!totalPages || page >= totalPages - 1}
-            className="rounded px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-30"
-          >
-            다음
-          </button>
+        <div className="border-t">
+          <PaginationBar
+            page={page}
+            totalPages={totalPages ?? 1}
+            onPageChange={onPageChange}
+            pageSize={pageSize}
+            onPageSizeChange={onPageSizeChange}
+          />
         </div>
       )}
     </div>

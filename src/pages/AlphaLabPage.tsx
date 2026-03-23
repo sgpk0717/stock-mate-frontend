@@ -7,6 +7,7 @@ import AlphaFactorTable from "@/components/alpha/AlphaFactorTable"
 import AlphaMineHistory from "@/components/alpha/AlphaMineHistory"
 import AlphaFactoryControl from "@/components/alpha/AlphaFactoryControl"
 import CompositeFactorBuilder from "@/components/alpha/CompositeFactorBuilder"
+import ImprovementHistory from "@/components/alpha/ImprovementHistory"
 import {
   useStartAlphaMining,
   useAlphaMiningRun,
@@ -34,6 +35,17 @@ function AlphaLabPage() {
   const [statusFilter, setStatusFilter] = useState("")
   const [causalFilter, setCausalFilter] = useState("")
   const [intervalFilter, setIntervalFilter] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+
+  // 검색어 debounce (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+      setPage(0)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const startMining = useStartAlphaMining()
   const { data: activeRun } = useAlphaMiningRun(activeRunId)
@@ -47,6 +59,7 @@ function AlphaLabPage() {
     status: statusFilter || undefined,
     causal_robust: causalFilter === "" ? undefined : causalFilter === "true",
     interval: intervalFilter || undefined,
+    search: debouncedSearch || undefined,
   })
   const [validationJobId, setValidationJobId] = useState<string | null>(null)
   const deleteFactor = useDeleteAlphaFactor()
@@ -222,6 +235,7 @@ function AlphaLabPage() {
         <TabsTrigger value="discovery"><Term>탐색</Term></TabsTrigger>
         <TabsTrigger value="factory" data-tour="alpha-factory-tab">공장</TabsTrigger>
         <TabsTrigger value="portfolio" data-tour="alpha-portfolio-tab"><Term>포트폴리오</Term></TabsTrigger>
+        <TabsTrigger value="improvement">개선 이력</TabsTrigger>
       </TabsList>
 
       {/* 탐색 탭 */}
@@ -272,6 +286,8 @@ function AlphaLabPage() {
               onCausalFilterChange={handleCausalFilterChange}
               intervalFilter={intervalFilter}
               onIntervalFilterChange={handleIntervalFilterChange}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
             />
           </div>
         </div>
@@ -288,6 +304,13 @@ function AlphaLabPage() {
       <TabsContent value="portfolio" className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl">
           <CompositeFactorBuilder />
+        </div>
+      </TabsContent>
+
+      {/* 개선 이력 탭 */}
+      <TabsContent value="improvement" className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl py-4">
+          <ImprovementHistory />
         </div>
       </TabsContent>
     </Tabs>
