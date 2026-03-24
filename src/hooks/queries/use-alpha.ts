@@ -21,6 +21,7 @@ import {
   startFactory,
   stopFactory,
   fetchFactoryStatus,
+  setFactoryAutoRestart,
   startAutoOptimize,
   fetchAutoOptimizeStatus,
   buildComposite,
@@ -30,6 +31,7 @@ import {
   createFactorChat,
   sendFactorChatMessage,
   saveFactorFromChat,
+  getDataAvailability,
 } from "@/api/alpha"
 import type {
   AlphaMineRequest,
@@ -216,20 +218,26 @@ export function useStartFactory() {
 export function useStopFactory() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: () => stopFactory(),
+    mutationFn: (interval: string = "1d") => stopFactory(interval),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["alpha-factory-status"] })
     },
   })
 }
 
-export function useFactoryStatus() {
+export function useFactoryAutoRestart() {
+  return useMutation({
+    mutationFn: (enabled: boolean) => setFactoryAutoRestart(enabled),
+  })
+}
+
+export function useFactoryStatus(interval = "1d") {
   return useQuery({
-    queryKey: ["alpha-factory-status"],
-    queryFn: fetchFactoryStatus,
+    queryKey: ["alpha-factory-status", interval],
+    queryFn: () => fetchFactoryStatus(interval),
     placeholderData: keepPreviousData,
     refetchInterval: (query) => {
-      return query.state.data?.running ? 5000 : false
+      return query.state.data?.running ? 3000 : 15000
     },
   })
 }
@@ -314,6 +322,14 @@ export function useSaveFactorChat() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["alpha-factors"] })
     },
+  })
+}
+
+export function useDataAvailability(interval: string) {
+  return useQuery({
+    queryKey: ["alpha-data-availability", interval],
+    queryFn: () => getDataAvailability(interval),
+    staleTime: 60_000, // 1분 캐시
   })
 }
 

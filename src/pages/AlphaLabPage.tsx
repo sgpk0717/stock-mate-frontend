@@ -1,18 +1,11 @@
 import { useEffect, useRef, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Term } from "@/components/ui/term"
-import AlphaMineConfig from "@/components/alpha/AlphaMineConfig"
-import AlphaMineProgress from "@/components/alpha/AlphaMineProgress"
 import AlphaFactorTable from "@/components/alpha/AlphaFactorTable"
-import AlphaMineHistory from "@/components/alpha/AlphaMineHistory"
 import AlphaFactoryControl from "@/components/alpha/AlphaFactoryControl"
 import CompositeFactorBuilder from "@/components/alpha/CompositeFactorBuilder"
 import ImprovementHistory from "@/components/alpha/ImprovementHistory"
 import {
-  useStartAlphaMining,
-  useAlphaMiningRun,
-  useAlphaMiningRuns,
-  useDeleteAlphaMiningRun,
   useAlphaFactors,
   useDeleteAlphaFactor,
   useDeleteAlphaFactorsBatch,
@@ -20,15 +13,8 @@ import {
   useCausalValidationStatus,
   useBacktestWithFactor,
 } from "@/hooks/queries/use-alpha"
-import type {
-  AlphaMineRequest,
-  AlphaMiningRunSummary,
-} from "@/types/alpha"
-
-const EMPTY_RUNS: AlphaMiningRunSummary[] = []
 
 function AlphaLabPage() {
-  const [activeRunId, setActiveRunId] = useState<string | null>(null)
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(100)
   const [sorts, setSorts] = useState<{ column: string; order: "asc" | "desc" }[]>([])
@@ -47,10 +33,6 @@ function AlphaLabPage() {
     return () => clearTimeout(timer)
   }, [searchQuery])
 
-  const startMining = useStartAlphaMining()
-  const { data: activeRun } = useAlphaMiningRun(activeRunId)
-  const { data: miningRuns = EMPTY_RUNS } = useAlphaMiningRuns()
-  const deleteMiningRun = useDeleteAlphaMiningRun()
   const { data: factorPage, isPending: isLoadingFactors } = useAlphaFactors({
     page,
     limit: pageSize,
@@ -71,17 +53,6 @@ function AlphaLabPage() {
   const factors = factorPage?.items ?? []
   const totalFactors = factorPage?.total ?? 0
   const totalPages = Math.ceil(totalFactors / pageSize)
-
-  const handleStart = (config: AlphaMineRequest) => {
-    startMining.mutate(config, {
-      onSuccess: (res) => {
-        setActiveRunId(res.id)
-      },
-      onError: (e) => {
-        console.error("Mining start failed:", e)
-      },
-    })
-  }
 
   const handleBacktest = (factorId: string) => {
     const factor = factors.find((f) => f.id === factorId)
@@ -116,20 +87,6 @@ function AlphaLabPage() {
         },
       },
     )
-  }
-
-  const handleDeleteRun = (runId: string) => {
-    if (
-      !window.confirm(
-        "이 마이닝 실행을 삭제하시겠습니까? 관련 팩터도 함께 삭제됩니다.",
-      )
-    )
-      return
-    deleteMiningRun.mutate(runId, {
-      onError: (e) => {
-        console.error("Delete mining run failed:", e)
-      },
-    })
   }
 
   const handleDeleteFactor = (factorId: string) => {
@@ -233,7 +190,6 @@ function AlphaLabPage() {
     <Tabs defaultValue="discovery" className="flex h-full flex-col p-4">
       <TabsList className="w-fit" data-tour="alpha-tabs">
         <TabsTrigger value="discovery"><Term>탐색</Term></TabsTrigger>
-        <TabsTrigger value="factory" data-tour="alpha-factory-tab">공장</TabsTrigger>
         <TabsTrigger value="portfolio" data-tour="alpha-portfolio-tab"><Term>포트폴리오</Term></TabsTrigger>
         <TabsTrigger value="improvement">개선 이력</TabsTrigger>
       </TabsList>
@@ -242,17 +198,8 @@ function AlphaLabPage() {
       <TabsContent value="discovery" className="flex-1 overflow-hidden">
         <div className="flex h-full gap-4 overflow-hidden">
           {/* 좌측 패널 */}
-          <div className="flex w-80 shrink-0 flex-col gap-4 overflow-y-auto">
-            <AlphaMineConfig
-              onStart={handleStart}
-              isLoading={startMining.isPending}
-            />
-            {activeRun && <AlphaMineProgress run={activeRun} />}
-            <AlphaMineHistory
-              runs={miningRuns}
-              onSelect={(runId) => setActiveRunId(runId)}
-              onDelete={handleDeleteRun}
-            />
+          <div className="w-80 shrink-0 overflow-y-auto">
+            <AlphaFactoryControl />
           </div>
 
           {/* 우측 패널 */}
@@ -290,13 +237,6 @@ function AlphaLabPage() {
               onSearchChange={setSearchQuery}
             />
           </div>
-        </div>
-      </TabsContent>
-
-      {/* 공장 탭 */}
-      <TabsContent value="factory" className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl">
-          <AlphaFactoryControl />
         </div>
       </TabsContent>
 

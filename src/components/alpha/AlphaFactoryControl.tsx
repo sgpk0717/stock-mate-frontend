@@ -15,14 +15,84 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import {
   useStartFactory,
   useStopFactory,
   useFactoryStatus,
+  useFactoryAutoRestart,
   useUniverses,
+  useAlphaFactors,
+  useAlphaMiningRuns,
+  useDeleteAlphaMiningRun,
+  useDataAvailability,
 } from "@/hooks/queries/use-alpha"
-import { useWorkflowStatus, useTriggerWorkflow } from "@/hooks/queries/use-workflow"
+import { useWorkflowStatus } from "@/hooks/queries/use-workflow"
 import { useAlphaFactoryStream } from "@/hooks/use-websocket"
+import { cn } from "@/lib/utils"
 import type { AlphaFactoryStatus, IterationLog, MiningLogSummary } from "@/types/alpha"
+
+const DATA_INTERVALS = [
+  { value: "1m", label: "1분" },
+  { value: "3m", label: "3분" },
+  { value: "5m", label: "5분" },
+  { value: "15m", label: "15분" },
+  { value: "30m", label: "30분" },
+  { value: "1h", label: "1시간" },
+  { value: "1d", label: "일봉" },
+] as const
+
+const FEATURE_GROUPS = [
+  { key: "ohlcv", label: "OHLCV", lag: () => null },
+  { key: "technical", label: "기술적 지표", lag: () => null },
+  { key: "cross_section", label: "횡단면/시계열", lag: () => null },
+  { key: "investor", label: "투자자 수급", lag: (iv: string) => iv !== "1d" ? "T-1" : null },
+  { key: "sentiment", label: "뉴스 감성", lag: () => "T-1" },
+  { key: "dart", label: "DART 재무", lag: () => "최근 공시" },
+  { key: "margin_short", label: "신용/공매도", lag: (iv: string) => iv !== "1d" ? "T-1" : null },
+  { key: "program", label: "프로그램 매매", lag: (iv: string) => iv !== "1d" ? "T-1" : null },
+  { key: "sector", label: "섹터 횡단면", lag: () => null },
+] as const
+
+function DataAvailabilityBoard({ dataInterval }: { dataInterval: string }) {
+  const { data: dataAvail } = useDataAvailability(dataInterval)
+
+  return (
+    <div className="rounded-md border border-dashed p-2.5">
+      <p className="mb-1.5 text-[10px] font-medium text-muted-foreground">
+        마이닝 데이터 요소
+      </p>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+        {FEATURE_GROUPS.map((fg) => {
+          const avail = dataAvail?.[fg.key]
+          const lag = fg.lag(dataInterval)
+          return (
+            <div key={fg.key} className="flex items-center gap-1.5">
+              <span className={cn(
+                "h-1.5 w-1.5 shrink-0 rounded-full",
+                avail?.available ? "bg-emerald-500" : "bg-gray-300",
+              )} />
+              <span className="truncate text-[10px]">{fg.label}</span>
+              {avail?.rows && (
+                <span className="ml-auto shrink-0 text-[9px] text-muted-foreground">
+                  {avail.rows.toLocaleString()}
+                </span>
+              )}
+              {lag && (
+                <span className="shrink-0 rounded bg-muted px-1 text-[9px] text-muted-foreground">
+                  {lag}
+                </span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 function ElapsedTime({ startedAt }: { startedAt: string }) {
   const [, setTick] = useState(0)
@@ -31,8 +101,10 @@ function ElapsedTime({ startedAt }: { startedAt: string }) {
     const id = setInterval(() => setTick((t) => t + 1), 30_000)
     return () => clearInterval(id)
   }, [startedAt])
-  const start = new Date(startedAt + "Z").getTime()
+  // started_at이 이미 timezone 포함(+00:00)이면 "Z" 추가 불필요
+  const start = new Date(startedAt.endsWith("Z") || startedAt.includes("+") ? startedAt : startedAt + "Z").getTime()
   const elapsed = Math.floor((Date.now() - start) / 1000)
+  if (Number.isNaN(elapsed) || elapsed < 0) return <>—</>
   if (elapsed < 60) return <>{elapsed}초</>
   if (elapsed < 3600) return <>{Math.floor(elapsed / 60)}분 {elapsed % 60}초</>
   const h = Math.floor(elapsed / 3600)
@@ -40,7 +112,7 @@ function ElapsedTime({ startedAt }: { startedAt: string }) {
   return <>{h}시간 {m}분</>
 }
 
-function FactoryRunningDashboard({ status }: { status: AlphaFactoryStatus }) {
+function FactoryRunningDashboard({ status, dataInterval }: { status: AlphaFactoryStatus; dataInterval: string }) {
   const config = status.config ?? {}
   const funnel = status.last_funnel ?? {}
 
@@ -85,6 +157,9 @@ function FactoryRunningDashboard({ status }: { status: AlphaFactoryStatus }) {
         </div>
         {config.context && <ContextExpander text={String(config.context)} />}
       </div>
+
+      {/* 데이터 요소 전광판 (가동 중에도 표시) */}
+      <DataAvailabilityBoard dataInterval={dataInterval} />
 
       {/* 핵심 지표 그리드 */}
       <div className="grid grid-cols-4 gap-2">
@@ -359,12 +434,11 @@ function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
 
 function AlphaFactoryControl() {
   const queryClient = useQueryClient()
-  const { data: status } = useFactoryStatus()
   const { data: universes } = useUniverses()
   const startFactory = useStartFactory()
   const stopFactory = useStopFactory()
   const { data: wfStatus } = useWorkflowStatus()
-  const triggerWorkflow = useTriggerWorkflow()
+  const deleteMiningRun = useDeleteAlphaMiningRun()
 
   // 사이클 로그 (WS 스트리밍)
   const [cycleIterations, setCycleIterations] = useState<IterationLog[]>([])
@@ -375,9 +449,39 @@ function AlphaFactoryControl() {
 
   const [context, setContext] = useState("")
   const [universe, setUniverse] = useState("KOSPI200")
-  const [startDate, setStartDate] = useState("2024-01-01")
-  const [endDate, setEndDate] = useState("2025-12-31")
   const [dataInterval, setDataInterval] = useState("1d")
+  const { data: status } = useFactoryStatus(dataInterval)
+
+  // 시드 팩터
+  const [seedFactorIds, setSeedFactorIds] = useState<string[]>([])
+  const { data: factorPage } = useAlphaFactors({ limit: 20, sort_by: "ic_mean", order: "desc" })
+  const availableFactors = factorPage?.items ?? []
+
+  // 마이닝 이력
+  const { data: miningRuns } = useAlphaMiningRuns()
+  const [historyOpen, setHistoryOpen] = useState(false)
+
+  // 인터벌별 디폴트 날짜 (메모리 + 통계적 유의성 기반)
+  // 1d: 2014-01-01~ (12년, ~1.3GB, IC 3000샘플)
+  // 5m: 전체 (13개월, ~2GB, IC 270샘플)
+  // 1m: 최근 3개월 (~5GB, IC 60샘플)
+  const getDefaultDates = (interval: string) => {
+    const today = new Date().toISOString().slice(0, 10)
+    switch (interval) {
+      case "1d": return { start: "2014-01-01", end: today }
+      case "5m": return { start: "2025-02-18", end: today }
+      case "1m": {
+        const d = new Date()
+        d.setMonth(d.getMonth() - 3)
+        return { start: d.toISOString().slice(0, 10), end: today }
+      }
+      default: return { start: "2020-01-01", end: today }
+    }
+  }
+
+  const defaults = getDefaultDates("1d")
+  const [startDate, setStartDate] = useState(defaults.start)
+  const [endDate, setEndDate] = useState(defaults.end)
   const [intervalMin, setIntervalMin] = useState(0)
   const [icThreshold, setIcThreshold] = useState(0.03)
   const [orthogonalityThreshold, setOrthogonalityThreshold] = useState(0.7)
@@ -508,20 +612,28 @@ function AlphaFactoryControl() {
         queryClient.invalidateQueries({ queryKey: ["alpha-factory-status"] })
         if (type === "cycle_complete") {
           queryClient.invalidateQueries({ queryKey: ["alpha-factors"] })
+          queryClient.invalidateQueries({ queryKey: ["alpha-mines"] })
           addActivity("info", `사이클 완료: ${event.factors_found ?? 0}개 팩터 발견`)
         }
+      }
+
+      if (type === "factory_started") {
+        queryClient.invalidateQueries({ queryKey: ["alpha-factory-status"] })
+        addActivity("info", "팩토리 시작됨")
       }
 
       if (type === "factory_stopped") {
         queryClient.invalidateQueries({ queryKey: ["alpha-factory-status"] })
         queryClient.invalidateQueries({ queryKey: ["alpha-factors"] })
+        queryClient.invalidateQueries({ queryKey: ["alpha-mines"] })
         addActivity("info", "팩토리 중지")
       }
     },
     [queryClient, addActivity],
   )
 
-  useAlphaFactoryStream(isRunning, handleFactoryEvent)
+  // 탐색 탭이 열려있는 동안 항상 WS 연결 (시작/중지 이벤트 수신)
+  useAlphaFactoryStream(true, handleFactoryEvent)
 
   const canStart = startDate && endDate && startDate < endDate
 
@@ -540,23 +652,39 @@ function AlphaFactoryControl() {
       enable_crossover: crossover,
       max_cycles: parsedMaxCycles && parsedMaxCycles > 0 ? parsedMaxCycles : undefined,
       data_interval: dataInterval,
+      seed_factor_ids: seedFactorIds.length > 0 ? seedFactorIds : undefined,
     })
   }
 
   const wfPhase = wfStatus?.phase ?? ""
   const isEmergencyStopped = wfPhase === "EMERGENCY_STOP"
-  const wfActive = !!wfStatus && !isEmergencyStopped
 
-  const handleWorkflowToggle = (checked: boolean) => {
-    if (checked) {
-      triggerWorkflow.mutate("resume")
-    } else {
-      triggerWorkflow.mutate("emergency_stop")
-      // 팩토리도 즉시 중지 (백엔드 emergency_stop에서도 중지하지만 이중 보장)
-      if (isRunning) {
-        stopFactory.mutate()
-      }
-    }
+  const autoRestart = useFactoryAutoRestart()
+
+  const handleAutoMiningToggle = (checked: boolean) => {
+    // 팩토리 자동 재시작만 제어 (워크플로우 emergency_stop 호출 안 함)
+    autoRestart.mutate(checked, {
+      onSuccess: () => {
+        if (!checked && isRunning) {
+          // 자동 마이닝 OFF + 현재 실행 중 → 팩토리도 중지
+          stopFactory.mutate(dataInterval)
+        }
+      },
+    })
+  }
+
+  const handleDeleteRun = (runId: string) => {
+    if (
+      !window.confirm(
+        "이 마이닝 실행을 삭제하시겠습니까? 관련 팩터도 함께 삭제됩니다.",
+      )
+    )
+      return
+    deleteMiningRun.mutate(runId, {
+      onError: (e) => {
+        console.error("Delete mining run failed:", e)
+      },
+    })
   }
 
   return (
@@ -569,20 +697,32 @@ function AlphaFactoryControl() {
             variant={isEmergencyStopped ? "destructive" : "outline"}
             className="text-[10px]"
           >
-            {wfPhase || "OFF"}
+            {wfPhase === "TRADING" ? "매매 중" :
+             wfPhase === "PRE_MARKET" ? "장 전" :
+             wfPhase === "MARKET_CLOSE" ? "장 마감" :
+             wfPhase === "REVIEW" ? "리뷰" :
+             wfPhase === "MINING" ? "마이닝" :
+             wfPhase === "IDLE" ? "대기" :
+             wfPhase === "EMERGENCY_STOP" ? "긴급 정지" :
+             wfPhase || "비활성"}
           </Badge>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-muted-foreground">
-            {wfActive ? "watchdog 활성" : "watchdog 비활성"}
+            {!status?.user_stopped ? "야간 자동 마이닝" : "자동 마이닝 꺼짐"}
           </span>
           <Switch
-            checked={wfActive}
-            onCheckedChange={handleWorkflowToggle}
-            disabled={triggerWorkflow.isPending}
+            checked={!status?.user_stopped}
+            onCheckedChange={handleAutoMiningToggle}
+            disabled={autoRestart.isPending}
           />
         </div>
       </div>
+      {status?.user_stopped && (
+        <p className="text-[10px] text-muted-foreground -mt-1 px-1">
+          자동 마이닝이 꺼져 있으면 워크플로우가 야간에 알파 팩토리를 자동 시작하지 않습니다. 수동으로만 시작/중지할 수 있습니다.
+        </p>
+      )}
 
       {/* 헤더 + 시작/중지 버튼 */}
       <div className="flex items-center justify-between rounded-lg border p-4">
@@ -595,7 +735,7 @@ function AlphaFactoryControl() {
         <Button
           variant={isRunning ? "destructive" : "default"}
           size="sm"
-          onClick={isRunning ? () => stopFactory.mutate() : handleStart}
+          onClick={isRunning ? () => stopFactory.mutate(dataInterval) : handleStart}
           disabled={
             startFactory.isPending ||
             stopFactory.isPending ||
@@ -615,7 +755,7 @@ function AlphaFactoryControl() {
       )}
 
       {/* 가동 중: 대시보드 */}
-      {isRunning && status && <FactoryRunningDashboard status={status} />}
+      {isRunning && status && <FactoryRunningDashboard status={status} dataInterval={dataInterval} />}
 
       {/* 가동 중: 이번 사이클 발견 팩터 */}
       {isRunning && (
@@ -669,26 +809,33 @@ function AlphaFactoryControl() {
 
           <div>
             <Label className="text-xs">데이터 인터벌</Label>
-            <Select value={dataInterval} onValueChange={setDataInterval}>
-              <SelectTrigger className="mt-1 h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1d">일봉 (1d)</SelectItem>
-                <SelectItem value="1h">1시간</SelectItem>
-                <SelectItem value="30m">30분</SelectItem>
-                <SelectItem value="15m">15분</SelectItem>
-                <SelectItem value="5m">5분</SelectItem>
-                <SelectItem value="3m">3분</SelectItem>
-                <SelectItem value="1m">1분</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {DATA_INTERVALS.map((di) => (
+                <Button
+                  key={di.value}
+                  variant={dataInterval === di.value ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    setDataInterval(di.value)
+                    const d = getDefaultDates(di.value)
+                    setStartDate(d.start)
+                    setEndDate(d.end)
+                  }}
+                >
+                  {di.label}
+                </Button>
+              ))}
+            </div>
             {dataInterval !== "1d" && (
               <p className="mt-0.5 text-[10px] text-muted-foreground">
                 분봉 데이터가 DB에 존재하는 종목만 탐색됩니다
               </p>
             )}
           </div>
+
+          {/* 데이터 요소 전광판 */}
+          <DataAvailabilityBoard dataInterval={dataInterval} />
 
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -775,7 +922,82 @@ function AlphaFactoryControl() {
               <Label className="text-xs">유전 교차</Label>
             </div>
           </div>
+
+          {/* 시드 팩터 선택 */}
+          {availableFactors.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">시드 <Term>팩터</Term> (선택)</Label>
+              <div className="max-h-32 overflow-y-auto rounded border p-2">
+                {availableFactors.slice(0, 10).map((f) => (
+                  <label
+                    key={f.id}
+                    className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-[10px] hover:bg-muted/50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={seedFactorIds.includes(f.id)}
+                      onChange={(e) => {
+                        setSeedFactorIds((prev) =>
+                          e.target.checked
+                            ? [...prev, f.id]
+                            : prev.filter((id) => id !== f.id),
+                        )
+                      }}
+                      className="h-3 w-3 rounded border-gray-300"
+                    />
+                    <span className="truncate">{f.name || f.expression_str?.slice(0, 30)}</span>
+                    <span className="ml-auto shrink-0 text-muted-foreground">
+                      IC {f.ic_mean?.toFixed(4)}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {seedFactorIds.length > 0 && (
+                <p className="text-[10px] text-muted-foreground">
+                  {seedFactorIds.length}개 시드 선택 — 초기 모집단에 포함됩니다
+                </p>
+              )}
+            </div>
+          )}
         </div>
+      )}
+
+      {/* 마이닝 이력 (Collapsible) */}
+      {miningRuns && miningRuns.length > 0 && (
+        <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
+          <CollapsibleTrigger className="flex w-full items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+            <span>{historyOpen ? "\u25BE" : "\u25B8"}</span>
+            마이닝 이력 ({miningRuns.length}건)
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2 space-y-1">
+            {miningRuns.slice(0, 10).map((run) => (
+              <div key={run.id} className="flex items-center justify-between rounded border p-2 text-[10px]">
+                <div className="min-w-0 flex-1">
+                  <span className="font-medium">{run.name}</span>
+                  <span className="ml-2 text-muted-foreground">
+                    {new Date(run.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span>{run.factors_found}개 팩터</span>
+                  <span className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    run.status === "COMPLETED" ? "bg-emerald-500" :
+                    run.status === "FAILED" ? "bg-red-500" : "bg-yellow-500",
+                  )} />
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-red-500"
+                    title="삭제"
+                    onClick={() => handleDeleteRun(run.id)}
+                  >
+                    x
+                  </button>
+                </div>
+              </div>
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </div>
   )
@@ -784,6 +1006,8 @@ function AlphaFactoryControl() {
 /** 실매매 피드백 접기/펼치기 */
 function ContextExpander({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false)
+  // 텔레그램 HTML 태그 제거 (b, i, code, a 등)
+  const clean = text.replace(/<\/?[a-z][^>]*>/gi, "").trim()
   return (
     <div className="mt-2">
       <pre
@@ -792,7 +1016,7 @@ function ContextExpander({ text }: { text: string }) {
         }`}
         onClick={() => setExpanded((v) => !v)}
       >
-        {text}
+        {clean}
       </pre>
       <button
         type="button"

@@ -19,6 +19,7 @@ import type {
   CompositeFactorBuildRequest,
   CompositeFactorResponse,
   CorrelationMatrix,
+  DataAvailability,
   ImprovementHistory,
   MiningIterationLogs,
   UniverseOption,
@@ -254,14 +255,20 @@ export async function startFactory(
   })
 }
 
-export async function stopFactory(): Promise<AlphaFactoryStatus> {
-  return apiFetch<AlphaFactoryStatus>("/alpha/factory/stop", {
+export async function stopFactory(interval = "1d"): Promise<AlphaFactoryStatus> {
+  return apiFetch<AlphaFactoryStatus>(`/alpha/factory/stop?interval=${interval}`, {
     method: "POST",
   })
 }
 
-export async function fetchFactoryStatus(): Promise<AlphaFactoryStatus> {
-  return apiFetch<AlphaFactoryStatus>("/alpha/factory/status")
+export async function fetchFactoryStatus(interval = "1d"): Promise<AlphaFactoryStatus> {
+  return apiFetch<AlphaFactoryStatus>(`/alpha/factory/status?interval=${interval}`)
+}
+
+export async function setFactoryAutoRestart(enabled: boolean): Promise<{ auto_restart: boolean }> {
+  return apiFetch<{ auto_restart: boolean }>(`/alpha/factory/auto-restart?enabled=${enabled}`, {
+    method: "PUT",
+  })
 }
 
 // Phase 3: Portfolio
@@ -313,4 +320,8 @@ export async function fetchCompositeFactors(): Promise<AlphaFactorPage> {
 
 export async function fetchImprovementHistory(): Promise<ImprovementHistory> {
   return apiFetch<ImprovementHistory>("/alpha/improvement-history")
+}
+
+export async function getDataAvailability(interval: string): Promise<DataAvailability> {
+  return apiFetch<DataAvailability>(`/alpha/data-availability?interval=${interval}`)
 }

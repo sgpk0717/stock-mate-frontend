@@ -158,10 +158,19 @@ export interface AlphaFactoryStartRequest {
   enable_crossover: boolean
   max_cycles?: number
   data_interval: string
+  seed_factor_ids?: string[]
 }
+
+export interface DataAvailabilityItem {
+  available: boolean
+  rows?: number
+}
+
+export type DataAvailability = Record<string, DataAvailabilityItem>
 
 export interface AlphaFactoryStatus {
   running: boolean
+  user_stopped?: boolean
   cycles_completed: number
   factors_discovered_total: number
   current_cycle_progress: number
