@@ -118,6 +118,39 @@ export async function deleteAlphaFactorsBatch(factorIds: string[]): Promise<void
   }
 }
 
+export interface PruneFactorsParams {
+  max_per_interval: number
+  dry_run?: boolean
+}
+
+export interface PruneFactorsResult {
+  dry_run: boolean
+  max_per_interval: number
+  total_pruned: number
+  intervals: Record<
+    string,
+    {
+      before: number
+      after: number
+      pruned: number
+      causal_kept?: number
+      niche_distribution?: Record<string, number>
+      note?: string
+    }
+  >
+}
+
+export async function pruneFactors(
+  params: PruneFactorsParams,
+): Promise<PruneFactorsResult> {
+  const query = new URLSearchParams()
+  query.set("max_per_interval", String(params.max_per_interval))
+  if (params.dry_run !== undefined) query.set("dry_run", String(params.dry_run))
+  return apiFetch<PruneFactorsResult>(`/alpha/factors/prune?${query}`, {
+    method: "POST",
+  })
+}
+
 export async function startCausalValidationBatch(
   factorIds: string[],
 ): Promise<CausalValidationJob> {

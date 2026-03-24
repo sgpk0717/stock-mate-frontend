@@ -14,6 +14,7 @@ import {
   fetchAlphaFactor,
   deleteAlphaFactor,
   deleteAlphaFactorsBatch,
+  pruneFactors,
   startCausalValidationBatch,
   fetchCausalValidationStatus,
   backtestWithFactor,
@@ -40,6 +41,7 @@ import type {
   AutoOptimizeRequest,
   CompositeFactorBuildRequest,
 } from "@/types/alpha"
+import type { PruneFactorsParams } from "@/api/alpha"
 
 export function useUniverses() {
   return useQuery({
@@ -151,6 +153,16 @@ export function useDeleteAlphaFactorsBatch() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (factorIds: string[]) => deleteAlphaFactorsBatch(factorIds),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["alpha-factors"] })
+    },
+  })
+}
+
+export function usePruneFactors() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: PruneFactorsParams) => pruneFactors(params),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["alpha-factors"] })
     },

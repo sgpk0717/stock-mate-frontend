@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
 import { Term } from "@/components/ui/term"
 import AlphaFactorTable from "@/components/alpha/AlphaFactorTable"
 import AlphaFactoryControl from "@/components/alpha/AlphaFactoryControl"
@@ -9,6 +10,7 @@ import {
   useAlphaFactors,
   useDeleteAlphaFactor,
   useDeleteAlphaFactorsBatch,
+  usePruneFactors,
   useStartCausalValidationBatch,
   useCausalValidationStatus,
   useBacktestWithFactor,
@@ -46,6 +48,7 @@ function AlphaLabPage() {
   const [validationJobId, setValidationJobId] = useState<string | null>(null)
   const deleteFactor = useDeleteAlphaFactor()
   const deleteFactorsBatch = useDeleteAlphaFactorsBatch()
+  const pruneMutation = usePruneFactors()
   const startValidation = useStartCausalValidationBatch()
   const { data: validationProgress } = useCausalValidationStatus(validationJobId)
   const backtestFactor = useBacktestWithFactor()
@@ -208,6 +211,53 @@ function AlphaLabPage() {
               <h2 className="text-lg font-bold">
                 <Term>알파</Term> <Term>팩터</Term> ({totalFactors}개)
               </h2>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  className="w-24 rounded border px-2 py-1 text-sm"
+                  min={100}
+                  step={500}
+                  defaultValue={3000}
+                  id="prune-limit"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const input = document.getElementById("prune-limit") as HTMLInputElement
+                    const limit = Number(input?.value || 3000)
+                    if (
+                      !window.confirm(
+                        `인터벌별 ${limit}개 초과 팩터를 정리합니다. 계속할까요?`,
+                      )
+                    )
+                      return
+                    pruneMutation.mutate(
+                      { max_per_interval: limit },
+                      {
+                        onSuccess: (res) => {
+                          window.alert(
+                            `팩터 정리 완료: 총 ${res.total_pruned}개 삭제\n${Object.entries(
+                              res.intervals,
+                            )
+                              .map(
+                                ([iv, d]) =>
+                                  `  ${iv}: ${d.before} -> ${d.after} (${d.pruned}개 삭제)`,
+                              )
+                              .join("\n")}`,
+                          )
+                        },
+                        onError: (e) => {
+                          window.alert(`팩터 정리 실패: ${e.message}`)
+                        },
+                      },
+                    )
+                  }}
+                  disabled={pruneMutation.isPending}
+                >
+                  {pruneMutation.isPending ? "정리 중..." : "팩터 정리"}
+                </Button>
+              </div>
             </div>
 
             <AlphaFactorTable
