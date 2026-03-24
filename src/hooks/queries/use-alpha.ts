@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react"
 import {
   keepPreviousData,
   useMutation,
@@ -17,6 +18,7 @@ import {
   pruneFactors,
   startCausalValidationBatch,
   fetchCausalValidationStatus,
+  cancelCausalValidation,
   backtestWithFactor,
   validateFactor,
   startFactory,
@@ -39,6 +41,7 @@ import type {
   AlphaFactorBacktestRequest,
   AlphaFactoryStartRequest,
   AutoOptimizeRequest,
+  CausalLogEntry,
   CompositeFactorBuildRequest,
 } from "@/types/alpha"
 import type { PruneFactorsParams } from "@/api/alpha"
@@ -177,18 +180,40 @@ export function useStartCausalValidationBatch() {
 
 export function useCausalValidationStatus(jobId: string | null) {
   const qc = useQueryClient()
+  const logRef = useRef<CausalLogEntry[]>([])
+  const sinceIdxRef = useRef(0)
+
+  // job 변경 시 리셋
+  useEffect(() => {
+    logRef.current = []
+    sinceIdxRef.current = 0
+  }, [jobId])
+
   return useQuery({
     queryKey: ["causal-validation-status", jobId],
-    queryFn: () => fetchCausalValidationStatus(jobId!),
+    queryFn: async () => {
+      const data = await fetchCausalValidationStatus(jobId!, sinceIdxRef.current)
+      if (data.logs && data.logs.length > 0) {
+        logRef.current = [...logRef.current, ...data.logs]
+        sinceIdxRef.current += data.logs.length
+      }
+      return { ...data, logs: logRef.current }
+    },
     enabled: !!jobId,
     refetchInterval: (query) => {
       const status = query.state.data?.status
-      if (status === "completed") {
+      if (status === "completed" || query.state.data?.cancelled) {
         qc.invalidateQueries({ queryKey: ["alpha-factors"] })
         return false
       }
       return 1000
     },
+  })
+}
+
+export function useCancelCausalValidation() {
+  return useMutation({
+    mutationFn: cancelCausalValidation,
   })
 }
 

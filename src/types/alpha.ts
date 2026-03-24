@@ -131,6 +131,15 @@ export interface CausalValidationJob {
   skipped: number
 }
 
+export interface CausalLogEntry {
+  ts: number
+  idx: number
+  total: number
+  factor_name: string
+  step: string // batch_start, start, ic_check, data_prep, causal_running, ate_computed, placebo, random_cause, regime, result, cancelled
+  message: string
+}
+
 export interface CausalValidationProgress {
   status: "running" | "completed"
   total: number
@@ -142,6 +151,8 @@ export interface CausalValidationProgress {
   avg_ms_per_factor: number | null
   estimated_remaining_ms: number | null
   current_factor_idx: number
+  logs: CausalLogEntry[]
+  cancelled: boolean
 }
 
 // Phase 3: Alpha Factory

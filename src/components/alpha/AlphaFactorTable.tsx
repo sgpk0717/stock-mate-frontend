@@ -1,22 +1,13 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import CausalBadge from "@/components/alpha/CausalBadge"
 import AlphaFactorDetail from "@/components/alpha/AlphaFactorDetail"
 import { Term } from "@/components/ui/term"
-import type { AlphaFactor } from "@/types/alpha"
+import { cn } from "@/lib/utils"
+import type { AlphaFactor, CausalValidationProgress } from "@/types/alpha"
 
 interface SortEntry {
   column: string
   order: "asc" | "desc"
-}
-
-interface ValidationProgress {
-  status: "running" | "completed"
-  total: number
-  completed: number
-  failed: number
-  robust: number
-  mirage: number
-  estimated_remaining_ms: number | null
 }
 
 interface AlphaFactorTableProps {
@@ -26,7 +17,8 @@ interface AlphaFactorTableProps {
   onValidateBatch: (factorIds: string[]) => void
   onBacktest: (factorId: string) => void
   isValidating?: boolean
-  validationProgress?: ValidationProgress | null
+  validationProgress?: CausalValidationProgress | null
+  onCancelValidation?: () => void
   isLoading?: boolean
   page?: number
   totalPages?: number
@@ -159,6 +151,7 @@ function AlphaFactorTable({
   onBacktest,
   isValidating,
   validationProgress,
+  onCancelValidation,
   isLoading,
   page,
   totalPages,
@@ -180,6 +173,12 @@ function AlphaFactorTable({
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [lastClickedId, setLastClickedId] = useState<string | null>(null)
+  const logEndRef = useRef<HTMLDivElement>(null)
+
+  // 로그 자동 스크롤
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [validationProgress?.logs?.length])
 
   if (isLoading) {
     return (
@@ -332,11 +331,24 @@ function AlphaFactorTable({
                   {validationProgress.completed + validationProgress.failed}/{validationProgress.total}
                   {" "}(robust {validationProgress.robust}, mirage {validationProgress.mirage}, fail {validationProgress.failed})
                 </span>
-                <span>
-                  {validationProgress.estimated_remaining_ms != null && validationProgress.estimated_remaining_ms > 0
-                    ? `약 ${Math.ceil(validationProgress.estimated_remaining_ms / 1000)}초 남음`
-                    : "계산 중..."}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span>
+                    {validationProgress.estimated_remaining_ms != null && validationProgress.estimated_remaining_ms > 0
+                      ? `약 ${Math.ceil(validationProgress.estimated_remaining_ms / 1000)}초 남음`
+                      : "계산 중..."}
+                  </span>
+                  {onCancelValidation && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm("진행 중인 팩터 검증 완료 후 중단합니다."))
+                          onCancelValidation()
+                      }}
+                      className="rounded border border-red-300 px-2 py-0.5 text-[11px] font-medium text-red-500 hover:bg-red-50"
+                    >
+                      중단
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
                 <div
@@ -346,6 +358,30 @@ function AlphaFactorTable({
                   }}
                 />
               </div>
+            </div>
+          )}
+          {/* 실시간 로그 패널 */}
+          {isValidating && validationProgress?.logs && validationProgress.logs.length > 0 && (
+            <div className="mt-2 max-h-48 overflow-y-auto rounded border bg-gray-950 p-2 font-mono text-[10px] leading-relaxed">
+              {validationProgress.logs.map((log, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "py-0.5",
+                    log.step === "result" && log.message.includes("VALIDATED") && "text-emerald-400",
+                    log.step === "result" && (log.message.includes("MIRAGE") || log.message.includes("ERROR")) && "text-red-400",
+                    log.step === "cancelled" && "text-yellow-400",
+                    log.step === "batch_start" && "text-blue-400 font-bold",
+                    !["result", "cancelled", "batch_start"].includes(log.step) && "text-gray-400",
+                  )}
+                >
+                  <span className="text-gray-600">
+                    {new Date(log.ts * 1000).toLocaleTimeString()}
+                  </span>
+                  {" "}{log.message}
+                </div>
+              ))}
+              <div ref={logEndRef} />
             </div>
           )}
         </div>

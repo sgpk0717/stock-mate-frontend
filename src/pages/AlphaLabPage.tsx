@@ -13,6 +13,7 @@ import {
   usePruneFactors,
   useStartCausalValidationBatch,
   useCausalValidationStatus,
+  useCancelCausalValidation,
   useBacktestWithFactor,
 } from "@/hooks/queries/use-alpha"
 
@@ -51,6 +52,7 @@ function AlphaLabPage() {
   const pruneMutation = usePruneFactors()
   const startValidation = useStartCausalValidationBatch()
   const { data: validationProgress } = useCausalValidationStatus(validationJobId)
+  const cancelValidation = useCancelCausalValidation()
   const backtestFactor = useBacktestWithFactor()
 
   const factors = factorPage?.items ?? []
@@ -110,20 +112,21 @@ function AlphaLabPage() {
     })
   }
 
-  const isValidating = !!validationJobId && validationProgress?.status === "running"
+  const isValidating = !!validationJobId && validationProgress?.status === "running" && !validationProgress?.cancelled
   const completedAlerted = useRef<string | null>(null)
 
-  // 검증 완료 시 job_id 해제
+  // 검증 완료/중단 시 job_id 해제
   useEffect(() => {
     if (
       validationJobId &&
-      validationProgress?.status === "completed" &&
+      (validationProgress?.status === "completed" || validationProgress?.cancelled) &&
       completedAlerted.current !== validationJobId
     ) {
       completedAlerted.current = validationJobId
       const p = validationProgress
+      const cancelledLabel = p.cancelled ? " (사용자 중단)" : ""
       window.alert(
-        `인과 검증 완료: ${p.completed}개 검증 (robust ${p.robust}, mirage ${p.mirage}), ${p.failed}개 실패`,
+        `인과 검증 완료${cancelledLabel}: ${p.completed}개 검증 (robust ${p.robust}, mirage ${p.mirage}), ${p.failed}개 실패`,
       )
       setValidationJobId(null)
     }
@@ -268,6 +271,11 @@ function AlphaLabPage() {
               onBacktest={handleBacktest}
               isValidating={isValidating || startValidation.isPending}
               validationProgress={validationProgress ?? null}
+              onCancelValidation={
+                validationJobId
+                  ? () => cancelValidation.mutate(validationJobId)
+                  : undefined
+              }
               isLoading={isLoadingFactors}
               page={page}
               totalPages={totalPages}

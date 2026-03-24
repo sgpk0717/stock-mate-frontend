@@ -165,8 +165,20 @@ export async function startCausalValidationBatch(
 
 export async function fetchCausalValidationStatus(
   jobId: string,
+  sinceIdx: number = 0,
 ): Promise<CausalValidationProgress> {
-  return apiFetch<CausalValidationProgress>(`/alpha/validate/${jobId}/status`)
+  return apiFetch<CausalValidationProgress>(
+    `/alpha/validate/${jobId}/status?since_idx=${sinceIdx}`,
+  )
+}
+
+export async function cancelCausalValidation(
+  jobId: string,
+): Promise<{ cancelled: boolean }> {
+  return apiFetch<{ cancelled: boolean }>(
+    `/alpha/validate/${jobId}/cancel`,
+    { method: "POST" },
+  )
 }
 
 export async function backtestWithFactor(
