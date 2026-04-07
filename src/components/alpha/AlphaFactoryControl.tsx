@@ -29,10 +29,13 @@ import {
   useAlphaMiningRuns,
   useDeleteAlphaMiningRun,
   useDataAvailability,
+  useBuildMegaAlpha,
+  useMegaAlphaStatus,
 } from "@/hooks/queries/use-alpha"
 import { useWorkflowStatus } from "@/hooks/queries/use-workflow"
 import { useAlphaFactoryStream } from "@/hooks/use-websocket"
 import { cn } from "@/lib/utils"
+import { CausalSweepPanel } from "./CausalSweepPanel"
 import type { AlphaFactoryStatus, IterationLog, MiningLogSummary } from "@/types/alpha"
 
 const DATA_INTERVALS = [
@@ -440,6 +443,12 @@ function AlphaFactoryControl() {
   const { data: wfStatus } = useWorkflowStatus()
   const deleteMiningRun = useDeleteAlphaMiningRun()
 
+  // [2026-03-31] 딥리서치 R1+R2 공통 권장 — 메가알파 앙상블 구축 훅
+  // 프로세스: /deep-research → 2건 보고서 교차 분석
+  // 변경/추가: 인과검증 통과 팩터를 직교화+가중 결합하는 빌드 + 상태 조회
+  const buildMegaAlpha = useBuildMegaAlpha()
+  const { data: megaAlphaStatus } = useMegaAlphaStatus()
+
   // 사이클 로그 (WS 스트리밍)
   const [cycleIterations, setCycleIterations] = useState<IterationLog[]>([])
   const [cycleSummary, setCycleSummary] = useState<MiningLogSummary | null>(null)
@@ -746,10 +755,53 @@ function AlphaFactoryControl() {
         </Button>
       </div>
 
+      {/* 인과검증 전수 패널 */}
+      <CausalSweepPanel
+        interval={dataInterval}
+        pendingCount={status?.causal_pending_count ?? 0}
+        isFactoryRunning={isRunning}
+        sweepJobIdFromServer={status?.causal_sweep_job_id}
+      />
+
+      {/* [2026-03-31] 딥리서치 R1+R2 공통 권장 — 메가알파 앙상블 구축 */}
+      {/* 프로세스: /deep-research → 2건 보고서 교차 분석 */}
+      {/* 변경/추가: 인과검증 통과 팩터를 자동 직교화 + 가중 결합하는 원클릭 빌드 */}
+      <div className="flex items-center gap-2 rounded-md border border-dashed p-2.5">
+        <div className="flex-1">
+          <p className="text-[10px] font-medium text-muted-foreground">
+            메가알파 앙상블
+          </p>
+          {megaAlphaStatus && megaAlphaStatus.status !== "idle" && (
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              {megaAlphaStatus.status === "running"
+                ? megaAlphaStatus.current_step ?? "실행 중..."
+                : megaAlphaStatus.status === "completed"
+                  ? `완료 (K=${megaAlphaStatus.best_k ?? "-"}, 후보 ${megaAlphaStatus.candidate_count ?? "-"}개)`
+                  : megaAlphaStatus.status === "failed"
+                    ? "실패"
+                    : megaAlphaStatus.status}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={() => buildMegaAlpha.mutate({ interval: dataInterval, minIcir: 0.3 })}
+          disabled={
+            buildMegaAlpha.isPending ||
+            megaAlphaStatus?.status === "running" ||
+            megaAlphaStatus?.status === "pending"
+          }
+          className="px-3 py-1.5 text-sm rounded-md border border-[#4056F4] text-[#4056F4] hover:bg-[#4056F4]/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {buildMegaAlpha.isPending || megaAlphaStatus?.status === "running"
+            ? "구축 중..."
+            : "메가알파 구축"}
+        </button>
+      </div>
+
       {/* 에러 표시 */}
-      {(startFactory.error || stopFactory.error) && (
+      {(startFactory.error || stopFactory.error || buildMegaAlpha.error) && (
         <p className="text-xs text-red-500">
-          {(startFactory.error ?? stopFactory.error)?.message ??
+          {(startFactory.error ?? stopFactory.error ?? buildMegaAlpha.error)?.message ??
             "팩토리 작업 실패"}
         </p>
       )}

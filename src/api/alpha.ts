@@ -13,6 +13,7 @@ import type {
   AutoOptimizeRequest,
   AutoOptimizeResponse,
   AutoOptimizeStatusResponse,
+  CausalSweepResponse,
   CausalValidationJob,
   CausalValidationProgress,
   CausalValidationResponse,
@@ -22,6 +23,8 @@ import type {
   DataAvailability,
   ImprovementHistory,
   MiningIterationLogs,
+  MiningReport,
+  MiningReportsRange,
   UniverseOption,
 } from "@/types/alpha"
 
@@ -369,4 +372,62 @@ export async function fetchImprovementHistory(): Promise<ImprovementHistory> {
 
 export async function getDataAvailability(interval: string): Promise<DataAvailability> {
   return apiFetch<DataAvailability>(`/alpha/data-availability?interval=${interval}`)
+}
+
+export async function fetchMiningReport(interval = "1d"): Promise<MiningReport> {
+  return apiFetch<MiningReport>(`/alpha/mining-report?interval=${interval}`)
+}
+
+export async function fetchMiningReports(params: {
+  interval?: string
+  gen_from?: number
+  gen_to?: number
+  date_from?: string
+  date_to?: string
+}): Promise<MiningReportsRange> {
+  const qs = new URLSearchParams()
+  if (params.interval) qs.set("interval", params.interval)
+  if (params.gen_from != null) qs.set("gen_from", String(params.gen_from))
+  if (params.gen_to != null) qs.set("gen_to", String(params.gen_to))
+  if (params.date_from) qs.set("date_from", params.date_from)
+  if (params.date_to) qs.set("date_to", params.date_to)
+  return apiFetch(`/alpha/mining-reports?${qs}`)
+}
+
+// [2026-03-31] 딥리서치 R1+R2 공통 권장 — 메가알파 앙상블 API
+// 프로세스: /deep-research → 2건 보고서 교차 분석
+// 변경/추가: 인과검증 통과 팩터를 자동 직교화 + 가중 결합하는 메가알파 빌드/상태 조회
+
+export async function buildMegaAlpha(
+  interval = "1d",
+  minIcir = 0.3,
+): Promise<{ status: string; total_candidates: number; job_id: string }> {
+  return apiFetch(
+    `/alpha/mega-alpha/build?interval=${interval}&min_icir=${minIcir}`,
+    { method: "POST" },
+  )
+}
+
+export async function fetchMegaAlphaStatus(): Promise<{
+  status: string
+  total_candidates?: number
+  selected?: number
+  current_step?: string
+  logs?: string[]
+  job_id?: string
+  saved_factor_id?: string
+  best_k?: number
+  candidate_count?: number
+}> {
+  return apiFetch("/alpha/mega-alpha/status")
+}
+
+// ── Causal Sweep ──
+
+export async function startCausalSweep(interval = "1d"): Promise<CausalSweepResponse> {
+  return apiFetch(`/alpha/causal-sweep?interval=${interval}`, { method: "POST" })
+}
+
+export async function cancelCausalSweep(jobId: string, interval = "1d"): Promise<{ cancelled: boolean; factory_restarted: boolean }> {
+  return apiFetch(`/alpha/causal-sweep/cancel?job_id=${jobId}&interval=${interval}`, { method: "POST" })
 }

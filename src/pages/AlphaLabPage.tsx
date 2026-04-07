@@ -6,6 +6,7 @@ import AlphaFactorTable from "@/components/alpha/AlphaFactorTable"
 import AlphaFactoryControl from "@/components/alpha/AlphaFactoryControl"
 import CompositeFactorBuilder from "@/components/alpha/CompositeFactorBuilder"
 import ImprovementHistory from "@/components/alpha/ImprovementHistory"
+import { MiningDashboard } from "@/components/alpha/mining/MiningDashboard"
 import {
   useAlphaFactors,
   useDeleteAlphaFactor,
@@ -77,8 +78,9 @@ function AlphaLabPage() {
           rebalance_freq: isIntraday ? "daily" : "weekly",
           band_threshold: 0.05,
           interval: factorInterval,
-          stop_loss_pct: 0.07,
-          max_drawdown_pct: 0.15,
+          stop_loss_pct: 0.15,
+          trailing_stop_pct: 0,
+          max_drawdown_pct: 0,
         },
       },
       {
@@ -198,6 +200,7 @@ function AlphaLabPage() {
         <TabsTrigger value="discovery"><Term>탐색</Term></TabsTrigger>
         <TabsTrigger value="portfolio" data-tour="alpha-portfolio-tab"><Term>포트폴리오</Term></TabsTrigger>
         <TabsTrigger value="improvement">개선 이력</TabsTrigger>
+        <TabsTrigger value="dashboard">대시보드</TabsTrigger>
       </TabsList>
 
       {/* 탐색 탭 */}
@@ -310,6 +313,11 @@ function AlphaLabPage() {
         <div className="mx-auto max-w-3xl py-4">
           <ImprovementHistory />
         </div>
+      </TabsContent>
+
+      {/* 대시보드 탭 */}
+      <TabsContent value="dashboard" className="p-4">
+        <MiningDashboard />
       </TabsContent>
     </Tabs>
   )

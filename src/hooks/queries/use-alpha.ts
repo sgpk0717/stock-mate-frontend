@@ -35,6 +35,12 @@ import {
   sendFactorChatMessage,
   saveFactorFromChat,
   getDataAvailability,
+  fetchMiningReport,
+  fetchMiningReports,
+  startCausalSweep,
+  cancelCausalSweep,
+  buildMegaAlpha,
+  fetchMegaAlphaStatus,
 } from "@/api/alpha"
 import type {
   AlphaMineRequest,
@@ -376,5 +382,87 @@ export function useImprovementHistory() {
     queryFn: () =>
       import("@/api/alpha").then((m) => m.fetchImprovementHistory()),
     staleTime: 60_000,
+  })
+}
+
+export function useMiningReport(interval = "1d") {
+  return useQuery({
+    queryKey: ["alpha", "mining-report", interval],
+    queryFn: () => fetchMiningReport(interval),
+    refetchInterval: 30_000,
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useMiningReports(params: {
+  interval?: string
+  gen_from?: number
+  gen_to?: number
+  date_from?: string
+  date_to?: string
+}) {
+  return useQuery({
+    queryKey: ["alpha", "mining-reports", params],
+    queryFn: () => fetchMiningReports(params),
+    placeholderData: keepPreviousData,
+    enabled: !!(params.gen_from != null || params.date_from),
+  })
+}
+
+// [2026-03-31] 딥리서치 R1+R2 공통 권장 — 메가알파 빌드 훅
+// 프로세스: /deep-research → 2건 보고서 교차 분석
+// 변경/추가: useBuildMegaAlpha + useMegaAlphaStatus 훅
+
+export function useBuildMegaAlpha() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ interval, minIcir }: { interval: string; minIcir: number }) =>
+      buildMegaAlpha(interval, minIcir),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["alpha-factors"] })
+      qc.invalidateQueries({ queryKey: ["mega-alpha-status"] })
+    },
+  })
+}
+
+export function useMegaAlphaStatus() {
+  const qc = useQueryClient()
+  return useQuery({
+    queryKey: ["mega-alpha-status"],
+    queryFn: () => fetchMegaAlphaStatus(),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      if (status === "completed" || status === "failed" || status === "idle") {
+        if (status === "completed") {
+          qc.invalidateQueries({ queryKey: ["alpha-factors"] })
+          qc.invalidateQueries({ queryKey: ["composite-factors"] })
+        }
+        return false
+      }
+      return 3000
+    },
+  })
+}
+
+// ── Causal Sweep ──
+
+export function useStartCausalSweep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (interval: string) => startCausalSweep(interval),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["alpha-factory-status"] })
+    },
+  })
+}
+
+export function useCancelCausalSweep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ jobId, interval }: { jobId: string; interval: string }) => cancelCausalSweep(jobId, interval),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["alpha-factory-status"] })
+      qc.invalidateQueries({ queryKey: ["alpha-factors"] })
+    },
   })
 }

@@ -105,7 +105,20 @@ export interface AlphaFactorBacktestRequest {
   band_threshold: number // 밴드 리밸런싱 임계값 (0~0.2)
   interval: string
   stop_loss_pct: number // 포지션 손절 (0=비활성, 0.07=7%)
+  trailing_stop_pct: number // 트레일링 스탑 (0=비활성, 0.20=고점 대비 20%)
   max_drawdown_pct: number // 포트폴리오 서킷 브레이커 (0=비활성, 0.15=15%)
+  buy_commission?: number // 매수 수수료 (0.00015=0.015%)
+  sell_commission?: number // 매도 수수료+세금 (0.00215=0.215%)
+  slippage_pct?: number // 슬리피지 (0.001=0.1%)
+  // 듀얼 팩터 모드
+  intraday_factor_id?: string | null // 분봉 팩터 ID (null이면 단일 팩터 모드)
+  intraday_interval?: string // 분봉 인터벌 (기본 5m)
+  intraday_entry_threshold?: number // 분봉 팩터 진입 기준 (기본 0.8)
+  intraday_exit_threshold?: number // 분봉 팩터 퇴출 기준 (기본 0.2)
+  // 지정가 매매 시뮬레이션
+  use_limit_orders?: boolean // 지정가 매매 활성화 (기본 true)
+  strict_fill?: boolean // 한 호가 관통 시에만 체결 (기본 false)
+  limit_ttl_bars?: number // 미체결 시 N봉 후 시장가 전환 (기본 2)
 }
 
 export interface CausalValidationResponse {
@@ -186,6 +199,7 @@ export interface AlphaFactoryStatus {
   factors_discovered_total: number
   current_cycle_progress: number
   current_cycle_message?: string
+  log_lines?: string[]
   last_cycle_at: string | null
   started_at?: string | null
   config: Record<string, unknown> | null
@@ -194,6 +208,8 @@ export interface AlphaFactoryStatus {
   generation?: number
   operator_stats?: Record<string, unknown> | null
   last_funnel?: Record<string, number> | null
+  causal_pending_count?: number
+  causal_sweep_job_id?: string | null
 }
 
 export interface CompositeFactorBuildRequest {
@@ -364,4 +380,78 @@ export interface ImprovementRound {
 
 export interface ImprovementHistory {
   rounds: ImprovementRound[]
+}
+
+// ── Mining Report Dashboard ──
+
+export interface FunnelData {
+  attempted: number
+  eval_ok: number
+  ic_pass: number
+  wf_overfit: number
+  sharpe_fail: number
+  cpcv_candidates: number
+}
+
+export interface CoverageTier {
+  count: number
+  avg_pct: number
+}
+
+export interface CoverageHealth {
+  tier_a: CoverageTier
+  tier_b: CoverageTier
+  tier_c: CoverageTier
+}
+
+export interface IcTrendPoint {
+  gen: number
+  avg_ic: number
+  best_ic: number
+  avg_icir: number
+  factor_count: number
+}
+
+export interface DiscoveredFactorSummary {
+  expression: string
+  ic_mean: number
+  icir: number
+  sharpe: number
+  max_drawdown: number
+  turnover: number
+  hypothesis: string | null
+}
+
+export interface MiningReport {
+  generation: number
+  cycle_num: number
+  elapsed: string
+  universe: string
+  data_interval: string
+  ic_threshold: number
+  total_discovered: number
+  funnel: FunnelData
+  operator_stats: Record<string, { calls: number; avg_fitness_delta: number }>
+  discovered_factors: DiscoveredFactorSummary[]
+  family_distribution: Record<string, number>
+  family_delta: Record<string, number>
+  derived_feature_usage: Record<string, number>
+  coverage_health: CoverageHealth
+  ic_trend: IcTrendPoint[]
+}
+
+export interface MiningReportsRange {
+  reports: MiningReport[]
+  total: number
+  interval: string
+  min_gen: number
+  max_gen: number
+}
+
+// ── Causal Sweep ──
+export interface CausalSweepResponse {
+  job_id: string | null
+  total: number
+  interval: string
+  auto_restart: boolean
 }

@@ -1,9 +1,36 @@
 import { useEffect, useRef, useState } from "react"
+import {
+  ChevronsUpDown,
+  ChevronUp,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Search,
+  X,
+  RotateCcw,
+  Trash2,
+  ShieldCheck,
+  Loader2,
+} from "lucide-react"
 import CausalBadge from "@/components/alpha/CausalBadge"
 import AlphaFactorDetail from "@/components/alpha/AlphaFactorDetail"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Term } from "@/components/ui/term"
 import { cn } from "@/lib/utils"
 import type { AlphaFactor, CausalValidationProgress } from "@/types/alpha"
+
+/* ── Types ─────────────────────────────────────────────────── */
 
 interface SortEntry {
   column: string
@@ -38,56 +65,11 @@ interface AlphaFactorTableProps {
   onSearchChange?: (query: string) => void
 }
 
-function PaginationBar({
-  page,
-  totalPages,
-  onPageChange,
-  pageSize,
-  onPageSizeChange,
-}: {
-  page: number
-  totalPages: number
-  onPageChange: (page: number) => void
-  pageSize?: number
-  onPageSizeChange?: (size: number) => void
-}) {
-  return (
-    <div className="flex items-center justify-between px-3 py-2">
-      <button
-        onClick={() => onPageChange(page - 1)}
-        disabled={page <= 0}
-        className="rounded px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-30"
-      >
-        이전
-      </button>
-      <div className="flex items-center gap-3">
-        {onPageSizeChange && (
-          <select
-            value={pageSize ?? 100}
-            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="rounded border bg-background px-1.5 py-0.5 text-xs"
-          >
-            {[10, 20, 50, 100, 200, 500, 1000].map((n) => (
-              <option key={n} value={n}>{n}개</option>
-            ))}
-          </select>
-        )}
-        <span className="text-xs text-muted-foreground">
-          {page + 1} / {totalPages || 1}
-        </span>
-      </div>
-      <button
-        onClick={() => onPageChange(page + 1)}
-        disabled={!totalPages || page >= totalPages - 1}
-        className="rounded px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-30"
-      >
-        다음
-      </button>
-    </div>
-  )
-}
+/* ── Constants ─────────────────────────────────────────────── */
 
 const COL_COUNT = 11
+
+/* ── Helpers ───────────────────────────────────────────────── */
 
 function formatCreatedAt(iso: string): string {
   const d = new Date(iso)
@@ -97,6 +79,8 @@ function formatCreatedAt(iso: string): string {
   const mi = String(d.getMinutes()).padStart(2, "0")
   return `${mm}-${dd} ${hh}:${mi}`
 }
+
+/* ── SortHeader ────────────────────────────────────────────── */
 
 function SortHeader({
   label,
@@ -118,30 +102,251 @@ function SortHeader({
   const sortIndex = sorts?.findIndex((s) => s.column === column) ?? -1
   const isActive = sortIndex !== -1
   const sortOrder = isActive ? sorts![sortIndex].order : undefined
-  const icon = isActive ? (sortOrder === "asc" ? "\u25B2" : "\u25BC") : "\u25BD"
 
   const alignClass =
     align === "right"
-      ? "justify-end text-right"
+      ? "text-right"
       : align === "center"
-        ? "justify-center text-center"
-        : "justify-start text-left"
+        ? "text-center"
+        : "text-left"
 
   return (
-    <th className={`px-3 py-2 font-medium ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"}`}>
+    <th className={cn("whitespace-nowrap px-3 py-2 text-xs font-medium text-muted-foreground", alignClass)}>
       <button
         onClick={() => onSortChange?.(column)}
-        className={`inline-flex items-center gap-0.5 hover:text-foreground ${isActive ? "text-foreground" : "text-muted-foreground"} ${alignClass}`}
+        className={cn(
+          "inline-flex h-8 -ml-3 items-center gap-1 rounded-md px-3 text-xs font-medium hover:bg-muted/80 transition-colors",
+          align === "right" && "ml-auto",
+          align === "center" && "mx-auto",
+          isActive && "text-foreground",
+        )}
       >
         {term ? <Term k={termKey}>{label}</Term> : label}
         {isActive && (sorts?.length ?? 0) > 1 && (
           <span className="text-[9px] font-semibold text-primary">{sortIndex + 1}</span>
         )}
-        <span className="text-[10px]">{icon}</span>
+        {isActive ? (
+          sortOrder === "asc" ? (
+            <ChevronUp className="size-3.5 text-foreground" />
+          ) : (
+            <ChevronDown className="size-3.5 text-foreground" />
+          )
+        ) : (
+          <ChevronsUpDown className="size-3.5 text-muted-foreground/60" />
+        )}
       </button>
     </th>
   )
 }
+
+/* ── StatusBadge ───────────────────────────────────────────── */
+
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    discovered: "bg-blue-100 text-blue-700",
+    validated: "bg-green-100 text-green-700",
+    mirage: "bg-red-100 text-red-700",
+    deployed: "bg-purple-100 text-purple-700",
+  }
+
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${styles[status] || "bg-gray-100 text-gray-700"}`}>
+      {status}
+    </span>
+  )
+}
+
+/* ── FactorRow ─────────────────────────────────────────────── */
+
+function FactorRow({
+  factor,
+  isExpanded,
+  isSelected,
+  onToggleSelect,
+  onToggle,
+  onDelete,
+  onBacktest,
+  onClose,
+}: {
+  factor: AlphaFactor
+  isExpanded: boolean
+  isSelected: boolean
+  onToggleSelect: (shiftKey: boolean) => void
+  onToggle: () => void
+  onDelete: (factorId: string) => void
+  onBacktest: (factorId: string) => void
+  onClose: () => void
+}) {
+  return (
+    <>
+      <tr
+        className={cn(
+          "cursor-pointer border-b transition-colors hover:bg-muted/50",
+          isExpanded && "bg-muted/30",
+          isSelected && "bg-muted/50",
+        )}
+        onClick={onToggle}
+      >
+        <td className="w-8 px-2 py-2 text-center">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => {}}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleSelect(e.shiftKey)
+            }}
+            className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300"
+          />
+        </td>
+        <td className="whitespace-nowrap px-3 py-2">
+          <span className="text-sm font-medium">{factor.name}</span>
+          {factor.interval && (
+            <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
+              {factor.interval}
+            </Badge>
+          )}
+        </td>
+        <td className="max-w-[120px] truncate px-3 py-2 font-mono text-xs text-muted-foreground">
+          {factor.expression_str}
+        </td>
+        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-sm">
+          {factor.ic_mean != null ? factor.ic_mean.toFixed(4) : "\u2014"}
+        </td>
+        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-sm">
+          {factor.icir != null ? factor.icir.toFixed(2) : "\u2014"}
+        </td>
+        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-sm">
+          {factor.sharpe != null ? factor.sharpe.toFixed(2) : "\u2014"}
+        </td>
+        <td className="whitespace-nowrap px-3 py-2 text-center">
+          <StatusBadge status={factor.status} />
+        </td>
+        <td className="whitespace-nowrap px-3 py-2 text-center">
+          <CausalBadge
+            causalRobust={factor.causal_robust}
+            effectSize={factor.causal_effect_size}
+            pValue={factor.causal_p_value}
+          />
+        </td>
+        <td className="whitespace-nowrap px-3 py-2 text-center text-xs tabular-nums">{factor.generation}</td>
+        <td className="whitespace-nowrap px-3 py-2 text-center text-xs text-muted-foreground tabular-nums" title={factor.created_at}>
+          {formatCreatedAt(factor.created_at)}
+        </td>
+        <td className="w-10 whitespace-nowrap px-2 py-2 text-center">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(factor.id)
+            }}
+            className="text-muted-foreground hover:text-destructive"
+          >
+            <X className="size-3.5" />
+          </Button>
+        </td>
+      </tr>
+      {isExpanded && (
+        <tr>
+          <td colSpan={COL_COUNT} className="border-b bg-muted/30 p-0">
+            <div className="p-3">
+              <AlphaFactorDetail
+                factor={factor}
+                onBacktest={onBacktest}
+                onClose={onClose}
+              />
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+/* ── ValidationPanel ───────────────────────────────────────── */
+
+function ValidationPanel({
+  validationProgress,
+  onCancelValidation,
+  logEndRef,
+}: {
+  validationProgress: CausalValidationProgress
+  onCancelValidation?: () => void
+  logEndRef: React.RefObject<HTMLDivElement | null>
+}) {
+  if (validationProgress.status !== "running") return null
+
+  const progressPct =
+    validationProgress.total > 0
+      ? ((validationProgress.completed + validationProgress.failed) / validationProgress.total) * 100
+      : 0
+
+  return (
+    <div className="border-t px-4 py-3">
+      {/* Progress bar */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          {validationProgress.completed + validationProgress.failed}/{validationProgress.total}
+          {" "}(robust {validationProgress.robust}, mirage {validationProgress.mirage}, fail {validationProgress.failed})
+        </span>
+        <div className="flex items-center gap-3">
+          <span>
+            {validationProgress.estimated_remaining_ms != null && validationProgress.estimated_remaining_ms > 0
+              ? `~${Math.ceil(validationProgress.estimated_remaining_ms / 1000)}s`
+              : "..."}
+          </span>
+          {onCancelValidation && (
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => {
+                if (window.confirm("진행 중인 팩터 검증 완료 후 중단합니다."))
+                  onCancelValidation()
+              }}
+              className="text-destructive border-destructive/30 hover:bg-destructive/10"
+            >
+              중단
+            </Button>
+          )}
+        </div>
+      </div>
+      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-primary transition-all duration-300"
+          style={{ width: `${progressPct}%` }}
+        />
+      </div>
+
+      {/* Logs */}
+      {validationProgress.logs && validationProgress.logs.length > 0 && (
+        <div className="mt-2 max-h-48 overflow-y-auto rounded-md border bg-gray-950 p-2 font-mono text-[10px] leading-relaxed">
+          {validationProgress.logs.map((log, i) => (
+            <div
+              key={i}
+              className={cn(
+                "py-0.5",
+                log.step === "result" && log.message.includes("VALIDATED") && "text-emerald-400",
+                log.step === "result" && (log.message.includes("MIRAGE") || log.message.includes("ERROR")) && "text-red-400",
+                log.step === "cancelled" && "text-yellow-400",
+                log.step === "batch_start" && "text-blue-400 font-bold",
+                !["result", "cancelled", "batch_start"].includes(log.step) && "text-gray-400",
+              )}
+            >
+              <span className="text-gray-600">
+                {new Date(log.ts * 1000).toLocaleTimeString()}
+              </span>
+              {" "}{log.message}
+            </div>
+          ))}
+          <div ref={logEndRef} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Main Component ────────────────────────────────────────── */
 
 function AlphaFactorTable({
   factors,
@@ -175,24 +380,21 @@ function AlphaFactorTable({
   const [lastClickedId, setLastClickedId] = useState<string | null>(null)
   const logEndRef = useRef<HTMLDivElement>(null)
 
-  // 로그 자동 스크롤
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [validationProgress?.logs?.length])
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center rounded-lg border p-8">
-        <svg className="h-5 w-5 animate-spin text-muted-foreground" viewBox="0 0 24 24" fill="none">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
+      <div className="flex items-center justify-center rounded-md border p-12">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         <span className="ml-2 text-sm text-muted-foreground">팩터 불러오는 중...</span>
       </div>
     )
   }
 
-  const hasFilters = !!(onStatusFilterChange || onCausalFilterChange || onIntervalFilterChange)
+  const hasActiveFilters =
+    !!(statusFilter) || !!(causalFilter) || !!(intervalFilter)
   const allSelected = factors.length > 0 && factors.every((f) => selected.has(f.id))
 
   const handleToggleAll = () => {
@@ -242,400 +444,266 @@ function AlphaFactorTable({
     onValidateBatch(Array.from(selected))
   }
 
+  const handleResetFilters = () => {
+    onStatusFilterChange?.("")
+    onCausalFilterChange?.("")
+    onIntervalFilterChange?.("")
+    onSearchChange?.("")
+  }
+
   return (
-    <div className="overflow-auto rounded-lg border">
-      {/* 상단 검색 + 페이지네이션 */}
-      {(onSearchChange || (onPageChange && page != null)) && (
-        <div className="flex items-center gap-3 border-b px-3 py-2">
+    <div className="flex flex-col gap-4">
+      {/* ── Toolbar ──────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        {/* Left: Search + Filters */}
+        <div className="flex flex-1 items-center gap-2">
           {onSearchChange && (
-            <div className="relative flex-1">
-              <svg
-                className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.3-4.3" />
-              </svg>
-              <input
-                type="text"
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
                 value={searchQuery ?? ""}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="팩터 이름 또는 수식 검색..."
-                className="w-full rounded border bg-background py-1 pl-8 pr-2 text-xs placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                placeholder="팩터 검색..."
+                className="h-8 w-[200px] pl-8 text-xs lg:w-[300px]"
               />
               {searchQuery && (
                 <button
                   onClick={() => onSearchChange("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  ✕
+                  <X className="size-3" />
                 </button>
               )}
             </div>
           )}
-          {factors.length > 0 && onPageChange && page != null && (
-            <div className="shrink-0">
-              <PaginationBar
-                page={page}
-                totalPages={totalPages ?? 1}
-                onPageChange={onPageChange}
-                pageSize={pageSize}
-                onPageSizeChange={onPageSizeChange}
-              />
-            </div>
+
+          {onIntervalFilterChange && (
+            <Select value={intervalFilter || "_all"} onValueChange={(v) => onIntervalFilterChange(v === "_all" ? "" : v)}>
+              <SelectTrigger size="sm" className="h-8 w-[90px] text-xs">
+                <SelectValue placeholder="Interval" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">전체</SelectItem>
+                <SelectItem value="1d">1d</SelectItem>
+                <SelectItem value="1h">1h</SelectItem>
+                <SelectItem value="30m">30m</SelectItem>
+                <SelectItem value="15m">15m</SelectItem>
+                <SelectItem value="5m">5m</SelectItem>
+                <SelectItem value="3m">3m</SelectItem>
+                <SelectItem value="1m">1m</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
+          {onStatusFilterChange && (
+            <Select value={statusFilter || "_all"} onValueChange={(v) => onStatusFilterChange(v === "_all" ? "" : v)}>
+              <SelectTrigger size="sm" className="h-8 w-[110px] text-xs">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">전체</SelectItem>
+                <SelectItem value="discovered">discovered</SelectItem>
+                <SelectItem value="validated">validated</SelectItem>
+                <SelectItem value="mirage">mirage</SelectItem>
+                <SelectItem value="deployed">deployed</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
+          {onCausalFilterChange && (
+            <Select value={causalFilter || "_all"} onValueChange={(v) => onCausalFilterChange(v === "_all" ? "" : v)}>
+              <SelectTrigger size="sm" className="h-8 w-[90px] text-xs">
+                <SelectValue placeholder="인과" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">전체</SelectItem>
+                <SelectItem value="true">통과</SelectItem>
+                <SelectItem value="false">미통과</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" className="h-8 px-2" onClick={handleResetFilters}>
+              <RotateCcw className="size-3.5" />
+              리셋
+            </Button>
           )}
         </div>
-      )}
 
-      {/* 선택 액션 바 */}
-      {selected.size > 0 && (
-        <div className="border-b bg-muted/60 px-3 py-2">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-medium">{selected.size}개 선택</span>
-            <button
-              onClick={handleValidateSelected}
-              disabled={isValidating}
-              className="inline-flex items-center gap-1.5 rounded bg-blue-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-600 disabled:opacity-60"
-            >
-              {isValidating && (
-                <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              )}
-              {isValidating ? "검증 중..." : "인과 검증"}
-            </button>
-            <button
-              onClick={handleDeleteSelected}
-              className="rounded bg-red-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-600"
-            >
-              선택 삭제
-            </button>
-            <button
-              onClick={() => setSelected(new Set())}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              선택 해제
-            </button>
-          </div>
-          {/* 검증 진행률 바 */}
-          {isValidating && validationProgress && validationProgress.status === "running" && (
-            <div className="mt-2">
-              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                <span>
-                  {validationProgress.completed + validationProgress.failed}/{validationProgress.total}
-                  {" "}(robust {validationProgress.robust}, mirage {validationProgress.mirage}, fail {validationProgress.failed})
-                </span>
-                <div className="flex items-center gap-3">
-                  <span>
-                    {validationProgress.estimated_remaining_ms != null && validationProgress.estimated_remaining_ms > 0
-                      ? `약 ${Math.ceil(validationProgress.estimated_remaining_ms / 1000)}초 남음`
-                      : "계산 중..."}
-                  </span>
-                  {onCancelValidation && (
-                    <button
-                      onClick={() => {
-                        if (window.confirm("진행 중인 팩터 검증 완료 후 중단합니다."))
-                          onCancelValidation()
-                      }}
-                      className="rounded border border-red-300 px-2 py-0.5 text-[11px] font-medium text-red-500 hover:bg-red-50"
-                    >
-                      중단
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
-                <div
-                  className="h-full rounded-full bg-blue-500 transition-all duration-300"
-                  style={{
-                    width: `${validationProgress.total > 0 ? ((validationProgress.completed + validationProgress.failed) / validationProgress.total) * 100 : 0}%`,
-                  }}
-                />
-              </div>
-            </div>
+        {/* Right: Selected actions */}
+        <div className="flex items-center gap-2">
+          {selected.size > 0 && (
+            <>
+              <span className="text-sm text-muted-foreground">{selected.size}개 선택</span>
+              <Button
+                size="sm"
+                className="h-8"
+                onClick={handleValidateSelected}
+                disabled={isValidating}
+              >
+                {isValidating ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <ShieldCheck className="size-3.5" />
+                )}
+                {isValidating ? "검증 중..." : "인과 검증"}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-8"
+                onClick={handleDeleteSelected}
+              >
+                <Trash2 className="size-3.5" />
+                삭제
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8"
+                onClick={() => setSelected(new Set())}
+              >
+                해제
+              </Button>
+            </>
           )}
-          {/* 실시간 로그 패널 */}
-          {isValidating && validationProgress?.logs && validationProgress.logs.length > 0 && (
-            <div className="mt-2 max-h-48 overflow-y-auto rounded border bg-gray-950 p-2 font-mono text-[10px] leading-relaxed">
-              {validationProgress.logs.map((log, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    "py-0.5",
-                    log.step === "result" && log.message.includes("VALIDATED") && "text-emerald-400",
-                    log.step === "result" && (log.message.includes("MIRAGE") || log.message.includes("ERROR")) && "text-red-400",
-                    log.step === "cancelled" && "text-yellow-400",
-                    log.step === "batch_start" && "text-blue-400 font-bold",
-                    !["result", "cancelled", "batch_start"].includes(log.step) && "text-gray-400",
-                  )}
-                >
-                  <span className="text-gray-600">
-                    {new Date(log.ts * 1000).toLocaleTimeString()}
-                  </span>
-                  {" "}{log.message}
-                </div>
-              ))}
-              <div ref={logEndRef} />
-            </div>
+
+          {(sorts?.length ?? 0) > 0 && (
+            <Button variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground" onClick={onClearSorts} title="정렬 초기화">
+              <X className="size-3.5" />
+              정렬
+            </Button>
           )}
         </div>
+      </div>
+
+      {/* ── Validation Progress ──────────────────────────── */}
+      {isValidating && validationProgress && (
+        <ValidationPanel
+          validationProgress={validationProgress}
+          onCancelValidation={onCancelValidation}
+          logEndRef={logEndRef}
+        />
       )}
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b bg-muted/50">
-            <th className="w-8 px-2 py-2 text-center">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={handleToggleAll}
-                className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300"
-              />
-            </th>
-            <th className="px-3 py-2 text-left font-medium">이름</th>
-            <th className="px-3 py-2 text-left font-medium">수식</th>
-            <SortHeader label="IC" column="ic_mean" sorts={sorts} onSortChange={onSortChange} term />
-            <SortHeader label="ICIR" column="icir" sorts={sorts} onSortChange={onSortChange} term />
-            <SortHeader label="Net Sharpe" column="sharpe" sorts={sorts} onSortChange={onSortChange} term termKey="Net Sharpe" />
-            <th className="px-3 py-2 text-center font-medium">상태</th>
-            <th className="px-3 py-2 text-center font-medium"><Term>인과</Term></th>
-            <SortHeader label="세대" column="generation" sorts={sorts} onSortChange={onSortChange} align="center" term />
-            <SortHeader label="생성일" column="created_at" sorts={sorts} onSortChange={onSortChange} align="center" />
-            <th className="px-3 py-2 text-center font-medium">
-              {(sorts?.length ?? 0) > 0 && (
-                <button
-                  onClick={onClearSorts}
-                  className="text-[10px] text-muted-foreground hover:text-foreground"
-                  title="정렬 초기화"
-                >
-                  ✕ 정렬
-                </button>
-              )}
-            </th>
-          </tr>
-          {hasFilters && (
-            <tr className="border-b bg-muted/30">
-              <td className="px-2 py-1" />
-              <td className="px-3 py-1">
-                {onIntervalFilterChange && (
-                  <select
-                    value={intervalFilter ?? ""}
-                    onChange={(e) => onIntervalFilterChange(e.target.value)}
-                    className="w-full rounded border bg-background px-1.5 py-0.5 text-xs"
-                  >
-                    <option value="">전체</option>
-                    <option value="1d">1d</option>
-                    <option value="1h">1h</option>
-                    <option value="30m">30m</option>
-                    <option value="15m">15m</option>
-                    <option value="5m">5m</option>
-                    <option value="3m">3m</option>
-                    <option value="1m">1m</option>
-                  </select>
-                )}
-              </td>
-              <td className="px-3 py-1" />
-              <td className="px-3 py-1" />
-              <td className="px-3 py-1" />
-              <td className="px-3 py-1" />
-              <td className="px-3 py-1">
-                {onStatusFilterChange && (
-                  <select
-                    value={statusFilter ?? ""}
-                    onChange={(e) => onStatusFilterChange(e.target.value)}
-                    className="w-full rounded border bg-background px-1.5 py-0.5 text-xs"
-                  >
-                    <option value="">전체</option>
-                    <option value="discovered">discovered</option>
-                    <option value="validated">validated</option>
-                    <option value="mirage">mirage</option>
-                    <option value="deployed">deployed</option>
-                  </select>
-                )}
-              </td>
-              <td className="px-3 py-1">
-                {onCausalFilterChange && (
-                  <select
-                    value={causalFilter ?? ""}
-                    onChange={(e) => onCausalFilterChange(e.target.value)}
-                    className="w-full rounded border bg-background px-1.5 py-0.5 text-xs"
-                  >
-                    <option value="">전체</option>
-                    <option value="true">통과</option>
-                    <option value="false">미통과</option>
-                  </select>
-                )}
-              </td>
-              <td className="px-3 py-1" />
-              <td className="px-3 py-1" />
-              <td className="px-3 py-1" />
-            </tr>
-          )}
-        </thead>
-        <tbody>
-          {factors.length === 0 ? (
-            <tr>
-              <td colSpan={COL_COUNT} className="px-3 py-8 text-center text-sm text-muted-foreground">
-                발견된 팩터가 없습니다.
-              </td>
-            </tr>
-          ) : (
-            factors.map((f) => {
-              const isExpanded = expandedId === f.id
-              return (
-                <FactorRow
-                  key={f.id}
-                  factor={f}
-                  isExpanded={isExpanded}
-                  isSelected={selected.has(f.id)}
-                  onToggleSelect={(shiftKey: boolean) => handleToggleOne(f.id, shiftKey)}
-                  onToggle={() => handleRowClick(f)}
-                  onDelete={onDelete}
-                  onBacktest={onBacktest}
-                  onClose={() => setExpandedId(null)}
+      {/* ── Table ────────────────────────────────────────── */}
+      <div className="overflow-hidden rounded-md border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="w-8 px-2 py-2 text-center">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={handleToggleAll}
+                  className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300"
                 />
-              )
-            })
-          )}
-        </tbody>
-      </table>
+              </th>
+              <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-medium text-muted-foreground">이름</th>
+              <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-medium text-muted-foreground">수식</th>
+              <SortHeader label="IC" column="ic_mean" sorts={sorts} onSortChange={onSortChange} term />
+              <SortHeader label="ICIR" column="icir" sorts={sorts} onSortChange={onSortChange} term />
+              <SortHeader label="Sharpe" column="sharpe" sorts={sorts} onSortChange={onSortChange} term termKey="Net Sharpe" />
+              <th className="whitespace-nowrap px-3 py-2 text-center text-xs font-medium text-muted-foreground">상태</th>
+              <th className="whitespace-nowrap px-3 py-2 text-center text-xs font-medium text-muted-foreground"><Term>인과</Term></th>
+              <SortHeader label="세대" column="generation" sorts={sorts} onSortChange={onSortChange} align="center" term />
+              <SortHeader label="생성일" column="created_at" sorts={sorts} onSortChange={onSortChange} align="center" />
+              <th className="w-10 px-2 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {factors.length === 0 ? (
+              <tr>
+                <td colSpan={COL_COUNT} className="px-3 py-12 text-center text-sm text-muted-foreground">
+                  발견된 팩터가 없습니다.
+                </td>
+              </tr>
+            ) : (
+              factors.map((f) => {
+                const isExpanded = expandedId === f.id
+                return (
+                  <FactorRow
+                    key={f.id}
+                    factor={f}
+                    isExpanded={isExpanded}
+                    isSelected={selected.has(f.id)}
+                    onToggleSelect={(shiftKey: boolean) => handleToggleOne(f.id, shiftKey)}
+                    onToggle={() => handleRowClick(f)}
+                    onDelete={onDelete}
+                    onBacktest={onBacktest}
+                    onClose={() => setExpandedId(null)}
+                  />
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
 
-      {/* 하단 페이지네이션 */}
+      {/* ── Pagination ───────────────────────────────────── */}
       {factors.length > 0 && onPageChange && page != null && (
-        <div className="border-t">
-          <PaginationBar
-            page={page}
-            totalPages={totalPages ?? 1}
-            onPageChange={onPageChange}
-            pageSize={pageSize}
-            onPageSizeChange={onPageSizeChange}
-          />
+        <div className="flex items-center justify-between px-2">
+          {/* Left: count */}
+          <div className="flex-1 text-sm text-muted-foreground">
+            {selected.size > 0
+              ? `${selected.size}개 선택`
+              : `${factors.length}개 팩터`}
+          </div>
+
+          {/* Right: page size + indicator + nav */}
+          <div className="flex items-center gap-6">
+            {onPageSizeChange && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">페이지당</span>
+                <select
+                  value={pageSize ?? 100}
+                  onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                  className="h-8 w-[70px] rounded-md border bg-background px-2 text-sm"
+                >
+                  {[20, 50, 100, 200].map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <span className="text-sm font-medium">
+              {page + 1} / {totalPages || 1}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => onPageChange(0)}
+                disabled={page <= 0}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-sm disabled:opacity-50 hover:bg-muted transition-colors"
+              >
+                <ChevronsLeft className="size-4" />
+              </button>
+              <button
+                onClick={() => onPageChange(page - 1)}
+                disabled={page <= 0}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-sm disabled:opacity-50 hover:bg-muted transition-colors"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <button
+                onClick={() => onPageChange(page + 1)}
+                disabled={!totalPages || page >= totalPages - 1}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-sm disabled:opacity-50 hover:bg-muted transition-colors"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+              <button
+                onClick={() => onPageChange((totalPages ?? 1) - 1)}
+                disabled={!totalPages || page >= totalPages - 1}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-sm disabled:opacity-50 hover:bg-muted transition-colors"
+              >
+                <ChevronsRight className="size-4" />
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
-  )
-}
-
-function FactorRow({
-  factor,
-  isExpanded,
-  isSelected,
-  onToggleSelect,
-  onToggle,
-  onDelete,
-  onBacktest,
-  onClose,
-}: {
-  factor: AlphaFactor
-  isExpanded: boolean
-  isSelected: boolean
-  onToggleSelect: (shiftKey: boolean) => void
-  onToggle: () => void
-  onDelete: (factorId: string) => void
-  onBacktest: (factorId: string) => void
-  onClose: () => void
-}) {
-  return (
-    <>
-      <tr
-        className={`cursor-pointer border-b transition-colors hover:bg-muted/30 ${isExpanded ? "bg-muted/20" : ""} ${isSelected ? "bg-blue-50" : ""}`}
-        onClick={onToggle}
-      >
-        <td className="w-8 px-2 py-2 text-center">
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={() => {}}
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggleSelect(e.shiftKey)
-            }}
-            className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300"
-          />
-        </td>
-        <td className="px-3 py-2 font-medium">
-          <span>{factor.name}</span>
-          {factor.interval && (
-            <span className="ml-1.5 inline-flex rounded border px-1 py-0 text-[10px] font-normal text-muted-foreground">
-              {factor.interval}
-            </span>
-          )}
-        </td>
-        <td className="max-w-[200px] truncate px-3 py-2 font-mono text-xs">
-          {factor.expression_str}
-        </td>
-        <td className="px-3 py-2 text-right">
-          {factor.ic_mean != null ? factor.ic_mean.toFixed(4) : "\u2014"}
-        </td>
-        <td className="px-3 py-2 text-right">
-          {factor.icir != null ? factor.icir.toFixed(2) : "\u2014"}
-        </td>
-        <td className="px-3 py-2 text-right">
-          {factor.sharpe != null ? factor.sharpe.toFixed(2) : "\u2014"}
-        </td>
-        <td className="px-3 py-2 text-center">
-          <StatusBadge status={factor.status} />
-        </td>
-        <td className="px-3 py-2 text-center">
-          <CausalBadge
-            causalRobust={factor.causal_robust}
-            effectSize={factor.causal_effect_size}
-            pValue={factor.causal_p_value}
-          />
-        </td>
-        <td className="px-3 py-2 text-center text-xs">{factor.generation}</td>
-        <td className="px-3 py-2 text-center text-xs text-muted-foreground" title={factor.created_at}>
-          {formatCreatedAt(factor.created_at)}
-        </td>
-        <td className="px-3 py-2 text-center">
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete(factor.id)
-            }}
-            className="text-xs text-red-500 hover:text-red-700"
-          >
-            삭제
-          </button>
-        </td>
-      </tr>
-      {isExpanded && (
-        <tr>
-          <td colSpan={COL_COUNT} className="border-b bg-muted/10 p-0">
-            <div className="p-3">
-              <AlphaFactorDetail
-                factor={factor}
-                onBacktest={onBacktest}
-                onClose={onClose}
-              />
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
-  )
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    discovered: "bg-blue-100 text-blue-700",
-    validated: "bg-green-100 text-green-700",
-    mirage: "bg-red-100 text-red-700",
-    deployed: "bg-purple-100 text-purple-700",
-  }
-
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] || "bg-gray-100 text-gray-700"}`}
-    >
-      {status}
-    </span>
   )
 }
 

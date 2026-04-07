@@ -50,12 +50,29 @@ function AlphaMineConfig({ onStart, isLoading }: AlphaMineConfigProps) {
   const [name, setName] = useState("Alpha Mining")
   const [context, setContext] = useState("")
   const [universe, setUniverse] = useState("KOSPI200")
-  const [startDate, setStartDate] = useState("2024-01-01")
-  const [endDate, setEndDate] = useState("2025-12-31")
+  const [interval, setInterval] = useState("1d")
+
+  // 인터벌별 디폴트 날짜 (메모리 + 통계적 유의성 기반)
+  const getDefaultDates = (iv: string) => {
+    const today = new Date().toISOString().slice(0, 10)
+    switch (iv) {
+      case "1d": return { start: "2014-01-01", end: today }
+      case "5m": return { start: "2025-02-18", end: today }
+      case "1m": {
+        const d = new Date()
+        d.setMonth(d.getMonth() - 3)
+        return { start: d.toISOString().slice(0, 10), end: today }
+      }
+      default: return { start: "2020-01-01", end: today }
+    }
+  }
+
+  const defaults = getDefaultDates("1d")
+  const [startDate, setStartDate] = useState(defaults.start)
+  const [endDate, setEndDate] = useState(defaults.end)
   const [maxIterations, setMaxIterations] = useState(5)
   const [icThreshold, setIcThreshold] = useState(0.03)
   const [orthogonalityThreshold, setOrthogonalityThreshold] = useState(0.7)
-  const [interval, setInterval] = useState("1d")
   const [usePysr, setUsePysr] = useState(false)
   const [pysrMaxSize, setPysrMaxSize] = useState(15)
   const [pysrParsimony, setPysrParsimony] = useState(0.03)
@@ -140,7 +157,12 @@ function AlphaMineConfig({ onStart, isLoading }: AlphaMineConfigProps) {
               <button
                 key={iv.value}
                 type="button"
-                onClick={() => setInterval(iv.value)}
+                onClick={() => {
+                  setInterval(iv.value)
+                  const d = getDefaultDates(iv.value)
+                  setStartDate(d.start)
+                  setEndDate(d.end)
+                }}
                 className={cn(
                   "h-7 rounded-md border px-2.5 text-xs font-medium transition-colors",
                   interval === iv.value
