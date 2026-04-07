@@ -37,8 +37,8 @@ function ProgramTradingTab({ symbol, start, end, page, pageSize, onPageChange, o
             <TableHeader>
               <TableRow>
                 <TableHead>종목</TableHead><TableHead>시간</TableHead>
-                <TableHead className="text-right">매수량</TableHead><TableHead className="text-right">매도량</TableHead><TableHead className="text-right">순매수량</TableHead>
                 <TableHead className="text-right">매수금액</TableHead><TableHead className="text-right">매도금액</TableHead><TableHead className="text-right">순매수금액</TableHead>
+                <TableHead className="text-right">차익매수</TableHead><TableHead className="text-right">비차익매수</TableHead>
                 <TableHead>수집시각</TableHead>
               </TableRow>
             </TableHeader>
@@ -47,12 +47,11 @@ function ProgramTradingTab({ symbol, start, end, page, pageSize, onPageChange, o
                 <TableRow key={r.id}>
                   <TableCell className="text-xs"><span className="font-medium">{r.name ?? r.symbol}</span>{r.name && <span className="ml-1 text-muted-foreground">{r.symbol}</span>}</TableCell>
                   <TableCell className="font-mono text-xs">{fmtAt(r.dt)}</TableCell>
-                  <TableCell className="text-right font-mono text-xs">{formatNumber(r.pgm_buy_qty)}</TableCell>
-                  <TableCell className="text-right font-mono text-xs">{formatNumber(r.pgm_sell_qty)}</TableCell>
-                  <TableCell className={cn("text-right font-mono text-xs", netColor(r.pgm_net_qty))}>{formatNumber(r.pgm_net_qty)}</TableCell>
                   <TableCell className="text-right font-mono text-xs">{formatKRW(r.pgm_buy_amount)}</TableCell>
                   <TableCell className="text-right font-mono text-xs">{formatKRW(r.pgm_sell_amount)}</TableCell>
                   <TableCell className={cn("text-right font-mono text-xs", netColor(r.pgm_net_amount))}>{formatKRW(r.pgm_net_amount)}</TableCell>
+                  <TableCell className="text-right font-mono text-xs">{formatKRW(r.arbt_buy_amount)}</TableCell>
+                  <TableCell className="text-right font-mono text-xs">{formatKRW(r.nabt_buy_amount)}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{fmtAt(r.collected_at)}</TableCell>
                 </TableRow>
               ))}

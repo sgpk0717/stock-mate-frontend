@@ -56,12 +56,13 @@ export interface ProgramTradingRow {
   symbol: string
   name: string | null
   dt: string
-  pgm_buy_qty: number
-  pgm_sell_qty: number
-  pgm_net_qty: number
   pgm_buy_amount: number
   pgm_sell_amount: number
   pgm_net_amount: number
+  arbt_buy_amount: number
+  arbt_sell_amount: number
+  nabt_buy_amount: number
+  nabt_sell_amount: number
   collected_at: string | null
 }
 

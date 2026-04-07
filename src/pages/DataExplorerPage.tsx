@@ -9,6 +9,7 @@ import ProgramTradingTab from "@/components/data-explorer/ProgramTradingTab"
 import NewsSentimentTab from "@/components/data-explorer/NewsSentimentTab"
 import CandleCoverageTab from "@/components/data-explorer/CandleCoverageTab"
 import DataGapsTab from "@/components/data-explorer/DataGapsTab"
+import DiscussionTab from "@/components/data-explorer/DiscussionTab"
 
 function DataExplorerPage() {
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null)
@@ -41,13 +42,19 @@ function DataExplorerPage() {
         <CollectionOverview />
       </div>
 
-      <Tabs data-tour="data-tabs" defaultValue="investor">
+      <Tabs data-tour="data-tabs" defaultValue="investor" onValueChange={() => {
+        const el = document.querySelector("main")
+        if (!el) return
+        const top = el.scrollTop
+        requestAnimationFrame(() => { el.scrollTop = top })
+      }}>
         <TabsList>
           <TabsTrigger value="investor">투자자 수급</TabsTrigger>
           <TabsTrigger value="margin">공매도/신용</TabsTrigger>
           <TabsTrigger value="dart">DART 재무</TabsTrigger>
           <TabsTrigger value="program">프로그램 매매</TabsTrigger>
           <TabsTrigger value="news">뉴스 감성</TabsTrigger>
+          <TabsTrigger value="discussion">종토방</TabsTrigger>
           <TabsTrigger value="candle">캔들 커버리지</TabsTrigger>
           <TabsTrigger value="gaps">데이터 갭</TabsTrigger>
         </TabsList>
@@ -88,6 +95,14 @@ function DataExplorerPage() {
             symbol={selectedSymbol} start={startDate || undefined} end={endDate || undefined}
             page={getPage("news")} pageSize={pageSize}
             onPageChange={(p) => setPage("news", p)} onPageSizeChange={handlePageSizeChange}
+            {...dateProps}
+          />
+        </TabsContent>
+        <TabsContent value="discussion">
+          <DiscussionTab
+            symbol={selectedSymbol} start={startDate || undefined} end={endDate || undefined}
+            page={getPage("discussion")} pageSize={pageSize}
+            onPageChange={(p) => setPage("discussion", p)} onPageSizeChange={handlePageSizeChange}
             {...dateProps}
           />
         </TabsContent>

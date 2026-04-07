@@ -93,3 +93,62 @@ export async function fetchDataGaps(dataType?: string, limit?: number): Promise<
   const qs = params.toString()
   return apiFetch<DataGapItem[]>(`/data/gaps${qs ? `?${qs}` : ""}`)
 }
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8007"
+
+/** SSE 스트림으로 데이터 검증 실행. onMessage 콜백에 각 이벤트 전달. */
+export function startVerification(
+  source: string,
+  onMessage: (data: VerifyEvent) => void,
+  opts?: { lookbackDays?: number },
+): AbortController {
+  const ctrl = new AbortController()
+  const params = new URLSearchParams()
+  if (opts?.lookbackDays) params.set("lookback_days", String(opts.lookbackDays))
+  const qs = params.toString()
+  const url = `${API_URL}/data/verify/${source}${qs ? `?${qs}` : ""}`
+
+  fetch(url, { signal: ctrl.signal })
+    .then(async (resp) => {
+      if (!resp.ok || !resp.body) {
+        onMessage({ type: "error", message: `HTTP ${resp.status}` })
+        return
+      }
+      const reader = resp.body.getReader()
+      const dec = new TextDecoder()
+      let buf = ""
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += dec.decode(value, { stream: true })
+        const lines = buf.split("\n")
+        buf = lines.pop() ?? ""
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              onMessage(JSON.parse(line.slice(6)))
+            } catch { /* ignore parse errors */ }
+          }
+        }
+      }
+    })
+    .catch((e) => {
+      if (e.name !== "AbortError") {
+        onMessage({ type: "error", message: String(e) })
+      }
+    })
+
+  return ctrl
+}
+
+export interface VerifyEvent {
+  type: "start" | "progress" | "gap" | "done" | "error"
+  message?: string
+  pct?: number
+  date?: string
+  verified_until?: string | null
+  gaps?: Array<{ date: string; type: string; message: string }>
+  total_gaps?: number
+  total_checked?: number
+  [key: string]: unknown
+}
