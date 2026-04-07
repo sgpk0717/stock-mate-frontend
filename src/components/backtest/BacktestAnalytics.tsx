@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import type { BacktestTrade } from "@/types"
 import BacktestRankingBoard from "./BacktestRankingBoard"
+import FactorInsightPanel from "./FactorInsightPanel"
 
 interface BacktestAnalyticsProps {
   trades: BacktestTrade[] | null
@@ -315,6 +316,17 @@ function DrawdownSummary({ equityCurve }: { equityCurve: Array<{ date: string; e
 function BacktestAnalytics({ trades, equityCurve, interval }: BacktestAnalyticsProps) {
   if (!trades?.length && !equityCurve?.length) return null
 
+  const closedTrades = useMemo(
+    () => (trades ?? []).filter((t) => t.exit_date),
+    [trades],
+  )
+
+  const hasFactorVariables = closedTrades.some(
+    (t) =>
+      t.entry_snapshot?.factor_variables &&
+      typeof t.entry_snapshot.factor_variables === "object",
+  )
+
   return (
     <div className="space-y-4">
       {/* 상단 2열: 랭킹보드 + 손익 분포 */}
@@ -329,6 +341,8 @@ function BacktestAnalytics({ trades, equityCurve, interval }: BacktestAnalyticsP
         {equityCurve && equityCurve.length > 0 && <MonthlyReturns equityCurve={equityCurve} />}
         {equityCurve && equityCurve.length > 0 && <DrawdownSummary equityCurve={equityCurve} />}
       </div>
+      {/* 팩터 변수 인사이트 (factor_variables가 있는 백테스트만) */}
+      {hasFactorVariables && <FactorInsightPanel trades={closedTrades} />}
     </div>
   )
 }

@@ -63,9 +63,14 @@ function BacktestSummaryCards({
 
   // 분할매매 지표
   const hasScaleMetrics =
-    m("scale_in_count") > 0 || m("partial_exit_count") > 0 || m("stop_loss_count") > 0 || m("eod_close_count") > 0
+    m("scale_in_count") > 0 || m("partial_exit_count") > 0 || m("stop_loss_count") > 0 || m("trailing_stop_count") > 0 || m("eod_close_count") > 0
 
   const payoff = m("avg_loss") !== 0 ? Math.abs(m("avg_win") / m("avg_loss")) : 0
+
+  // 팩터 백테스트 비용/리스크 설정 (metrics에서 추출)
+  const isFactorBt = strategyJson?.mode === "cross_sectional_portfolio"
+  const factorStopLossPct = m("stop_loss_pct")
+  const factorTrailingStopPct = m("trailing_stop_pct")
 
   // 팩터/전략 정보
   const strategyName = strategyJson?.name as string | undefined
@@ -115,8 +120,20 @@ function BacktestSummaryCards({
                 {strategyJson.interval && <Row label="인터벌" value={String(strategyJson.interval)} />}
                 {strategyJson.top_pct != null && <Row label="상위 비율" value={`${Number(strategyJson.top_pct) * 100}%`} />}
                 {strategyJson.rebalance_freq && <Row label="리밸런싱" value={String(strategyJson.rebalance_freq)} />}
-                {strategyJson.band_threshold != null && <Row label="밴드 임계" value={`${Number(strategyJson.band_threshold) * 100}%`} />}
+                {strategyJson.band_threshold != null && <Row label="리밸런싱 편차" value={`${Number(strategyJson.band_threshold) * 100}%`} />}
+                {isFactorBt && factorStopLossPct > 0 && <Row label="손절" value={`${(factorStopLossPct * 100).toFixed(1)}%`} />}
+                {isFactorBt && factorTrailingStopPct > 0 && <Row label="트레일링 스탑" value={`${(factorTrailingStopPct * 100).toFixed(1)}%`} />}
+                {isFactorBt && m("max_drawdown_pct") > 0 && <Row label="서킷 브레이커" value={`MDD ${(m("max_drawdown_pct") * 100).toFixed(0)}%`} />}
               </div>
+              {/* 거래 비용 정보 */}
+              {isFactorBt && (
+                <div className="grid gap-x-8 gap-y-0 sm:grid-cols-3 border-t pt-1 mt-1">
+                  <div className="text-[10px] font-medium text-muted-foreground col-span-full mb-0.5">거래 비용</div>
+                  <Row label="매수 수수료" value={`${(m("buy_commission") > 0 ? m("buy_commission") * 100 : 0.015).toFixed(3)}%`} />
+                  <Row label="매도 수수료+세금" value={`${(m("sell_commission") > 0 ? m("sell_commission") * 100 : 0.215).toFixed(3)}%`} />
+                  <Row label="슬리피지" value={`${(m("slippage_pct") > 0 ? m("slippage_pct") * 100 : 0.1).toFixed(2)}%`} />
+                </div>
+              )}
             </div>
           ) : (buyConds?.length || sellConds?.length) ? (
             <div className="border-t pt-2 grid gap-x-8 gap-y-0 sm:grid-cols-2">
@@ -181,6 +198,9 @@ function BacktestSummaryCards({
                 <Row label="분할매수" value={`${m("scale_in_count")}건`} />
                 <Row label="부분익절" value={`${m("partial_exit_count")}건`} />
                 <Row label="손절" value={`${m("stop_loss_count")}건`} color="blue" />
+                {m("trailing_stop_count") > 0 && (
+                  <Row label="트레일링 스탑" value={`${m("trailing_stop_count")}건`} color="blue" />
+                )}
                 {m("eod_close_count") > 0 && (
                   <Row label="장종료 청산" value={`${m("eod_close_count")}건`} />
                 )}

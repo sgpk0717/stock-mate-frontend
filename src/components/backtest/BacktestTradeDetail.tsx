@@ -6,61 +6,24 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { getLabel } from "@/lib/indicator-labels"
 import { Term } from "@/components/ui/term"
+import FactorVariableComparison from "./FactorVariableComparison"
+import { TradeJournalChart } from "./BacktestRankingBoard"
 import type { BacktestTrade, TradeConditionResult } from "@/types"
 
 interface BacktestTradeDetailProps {
   trade: BacktestTrade | null
   open: boolean
   onOpenChange: (open: boolean) => void
-}
-
-const INDICATOR_LABELS: Record<string, string> = {
-  rsi: "RSI",
-  macd_hist: "MACD Hist",
-  macd_line: "MACD Line",
-  macd_signal: "MACD Signal",
-  volume_ratio: "거래량 비율",
-  close: "종가",
-  avg_price: "평균단가",
-  highest_price: "고점",
-  loss_pct: "손실률",
-  drop_pct: "낙폭",
-  gain_pct: "수익률",
-  atr: "ATR",
-  stop_line: "스탑라인",
-  sentiment_score: "감성 점수",
-  article_count: "기사 수",
-  event_score: "이벤트 점수",
-  bb_upper: "BB 상단",
-  bb_lower: "BB 하단",
-  bb_middle: "BB 중단",
-  golden_cross: "골든크로스",
-  dead_cross: "데드크로스",
-  // 팩터 백테스트 스냅샷
-  factor_rank: "팩터 랭크",
-  factor_rank_pct: "팩터 상위(%)",
-  rank_position: "랭크 순위",
-  total_candidates: "전체 종목 수",
-  target_count: "매수 대상 수",
-  factor_value: "팩터 값",
-  max_gain_pct: "보유 중 최고(%)",
-  max_loss_pct: "보유 중 최저(%)",
-  exit_price_close: "퇴출 시 종가",
-}
-
-function getLabel(key: string): string {
-  if (INDICATOR_LABELS[key]) return INDICATOR_LABELS[key]
-  // sma_20, ema_10 등 동적 이름
-  const match = key.match(/^(sma|ema|atr)_(\d+)$/)
-  if (match) return `${match[1].toUpperCase()}(${match[2]})`
-  return key
+  interval?: string
 }
 
 function BacktestTradeDetail({
   trade,
   open,
   onOpenChange,
+  interval = "1d",
 }: BacktestTradeDetailProps) {
   if (!trade) return null
 
@@ -84,6 +47,9 @@ function BacktestTradeDetail({
         </DialogHeader>
 
         <div className="space-y-5 text-sm">
+          {/* 매매일지 차트 */}
+          <TradeJournalChart trade={trade} interval={interval} />
+
           {/* 매매 요약 */}
           <Section title="매매 요약">
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
@@ -159,6 +125,20 @@ function BacktestTradeDetail({
                 )}
             </Section>
           )}
+
+          {/* 팩터 변수 비교 */}
+          {(() => {
+            const entryVars = trade.entry_snapshot?.factor_variables
+            const exitVars = trade.exit_snapshot?.factor_variables
+            const hasVars = (entryVars && typeof entryVars === "object" && Object.keys(entryVars).length > 0)
+              || (exitVars && typeof exitVars === "object" && Object.keys(exitVars).length > 0)
+            return hasVars ? (
+              <FactorVariableComparison
+                entrySnapshot={trade.entry_snapshot}
+                exitSnapshot={trade.exit_snapshot}
+              />
+            ) : null
+          })()}
 
           {/* 매수 시점 지표 */}
           {trade.entry_snapshot &&
@@ -240,8 +220,10 @@ function ConditionRow({ result }: { result: TradeConditionResult }) {
   )
 }
 
-function SnapshotGrid({ snapshot }: { snapshot: Record<string, number> }) {
-  const entries = Object.entries(snapshot).filter(([, v]) => v != null)
+function SnapshotGrid({ snapshot }: { snapshot: Record<string, number | Record<string, number>> }) {
+  const entries = Object.entries(snapshot).filter(
+    ([, v]) => v != null && typeof v === "number",
+  ) as [string, number][]
   if (!entries.length) return null
   return (
     <div className="grid grid-cols-2 gap-1">

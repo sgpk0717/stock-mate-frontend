@@ -12,7 +12,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { useCandles } from "@/hooks/queries"
+import { useCandlesByDateRange } from "@/hooks/queries"
+import FactorVariableComparison from "./FactorVariableComparison"
 import type { BacktestTrade } from "@/types"
 
 // ── Types ──
@@ -44,7 +45,7 @@ function sortItems<T>(items: T[], key: keyof T, dir: SortDir): T[] {
 
 // ── 미니 차트: 매매일지 ──
 
-function TradeJournalChart({
+export function TradeJournalChart({
   trade,
   interval,
 }: {
@@ -56,13 +57,23 @@ function TradeJournalChart({
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null)
 
-  // 매매 기간에 맞춰 필요한 캔들 수만 요청 (보유일 + 앞뒤 여유)
-  const holdingDays = trade.holding_days || 30
-  const candleCount = Math.min(
-    interval === "1d" ? Math.max(holdingDays + 40, 60) : Math.max(holdingDays * 8, 100),
-    interval === "1d" ? 200 : 300,
-  )
-  const { data: candleResult } = useCandles(trade.symbol, interval, candleCount)
+  // 매매 기간 기반 날짜 범위로 캔들 요청 (과거 매매도 정확히 조회)
+  const bufferDays = interval === "1d" ? 20 : 5
+  const tradeStart = trade.entry_date
+    ? (() => {
+        const d = new Date(trade.entry_date)
+        d.setDate(d.getDate() - bufferDays)
+        return d.toISOString().slice(0, 10)
+      })()
+    : undefined
+  const tradeEnd = (trade.exit_date || trade.entry_date)
+    ? (() => {
+        const d = new Date(trade.exit_date || trade.entry_date)
+        d.setDate(d.getDate() + bufferDays)
+        return d.toISOString().slice(0, 10)
+      })()
+    : undefined
+  const { data: candleResult } = useCandlesByDateRange(trade.symbol, interval, tradeStart, tradeEnd)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -73,8 +84,8 @@ function TradeJournalChart({
       grid: { vertLines: { color: "#f4f4f5" }, horzLines: { color: "#f4f4f5" } },
       rightPriceScale: { borderColor: "#e4e4e7" },
       timeScale: { borderColor: "#e4e4e7", timeVisible: interval !== "1d" },
-      handleScroll: false,
-      handleScale: false,
+      handleScroll: { mouseWheel: false, pressedMouseMove: true },
+      handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: false },
       crosshair: {
         horzLine: { labelBackgroundColor: "#4056F4" },
         vertLine: { labelBackgroundColor: "#4056F4" },
@@ -146,15 +157,39 @@ function TradeJournalChart({
     } else {
       markersRef.current = createSeriesMarkers(seriesRef.current, markers)
     }
-    chartRef.current?.timeScale().fitContent()
-  }, [candles, trade, interval])
+    // 전체 데이터를 먼저 표시한 뒤, 매수~매도 기간으로 스크롤
+    const ts = chartRef.current?.timeScale()
+    if (ts) {
+      ts.fitContent()
+      // fitContent 후 약간의 지연을 두고 visible range 설정 (데이터 렌더링 대기)
+      if (trade.entry_date && data.length > 0) {
+        requestAnimationFrame(() => {
+          try {
+            const fromDate = new Date(trade.entry_date)
+            fromDate.setDate(fromDate.getDate() - bufferDays)
+            const toDate = new Date(trade.exit_date || trade.entry_date)
+            toDate.setDate(toDate.getDate() + bufferDays)
+            const fromTime = isIntraday
+              ? (Math.floor(fromDate.getTime() / 1000)) as unknown as Time
+              : fromDate.toISOString().slice(0, 10) as Time
+            const toTime2 = isIntraday
+              ? (Math.floor(toDate.getTime() / 1000)) as unknown as Time
+              : toDate.toISOString().slice(0, 10) as Time
+            ts.setVisibleRange({ from: fromTime, to: toTime2 })
+          } catch {
+            // setVisibleRange 실패 시 fitContent 유지
+          }
+        })
+      }
+    }
+  }, [candles, trade, interval, bufferDays])
 
   return (
     <div className="relative">
       <div ref={containerRef} className="h-[200px]" />
       {!candles?.length && (
         <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground bg-background/80">
-          차트 로딩 중...
+          해당 기간 차트 데이터 없음
         </div>
       )}
     </div>
@@ -179,19 +214,22 @@ function SymbolJournalChart({
   const zoomSubRef = useRef<(() => void) | null>(null)
   const initialBarCountRef = useRef(0)
 
-  // 전체 매매 기간 커버하는 캔들 수
-  const totalDays = useMemo(() => {
+  // 전체 매매 기간 기반 날짜 범위로 캔들 요청
+  const { tradeStart, tradeEnd } = useMemo(() => {
     const dates = trades.flatMap((t) => [t.entry_date, t.exit_date].filter(Boolean)) as string[]
-    if (dates.length < 2) return 60
+    if (dates.length === 0) return { tradeStart: undefined, tradeEnd: undefined }
     const sorted = dates.sort()
-    const diff = (new Date(sorted[sorted.length - 1]).getTime() - new Date(sorted[0]).getTime()) / 86400000
-    return Math.ceil(diff)
-  }, [trades])
-  const candleCount = Math.min(
-    interval === "1d" ? Math.max(totalDays + 40, 60) : Math.max(totalDays * 8, 100),
-    interval === "1d" ? 400 : 500,
-  )
-  const { data: candleResult } = useCandles(symbol, interval, candleCount)
+    const bufferDays = interval === "1d" ? 20 : 5
+    const startD = new Date(sorted[0])
+    startD.setDate(startD.getDate() - bufferDays)
+    const endD = new Date(sorted[sorted.length - 1])
+    endD.setDate(endD.getDate() + bufferDays)
+    return {
+      tradeStart: startD.toISOString().slice(0, 10),
+      tradeEnd: endD.toISOString().slice(0, 10),
+    }
+  }, [trades, interval])
+  const { data: candleResult } = useCandlesByDateRange(symbol, interval, tradeStart, tradeEnd)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -317,7 +355,7 @@ function SymbolJournalChart({
       <div ref={containerRef} className="h-[200px]" />
       {!candles?.length && (
         <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground bg-background/80">
-          차트 로딩 중...
+          해당 기간 차트 데이터 없음
         </div>
       )}
     </div>
@@ -326,10 +364,15 @@ function SymbolJournalChart({
 
 // ── 지표 스냅샷 그리드 ──
 
-function SnapshotGrid({ entry, exit }: { entry?: Record<string, number>; exit?: Record<string, number> }) {
+function SnapshotGrid({ entry, exit }: { entry?: Record<string, number | Record<string, number>>; exit?: Record<string, number | Record<string, number>> }) {
   if (!entry && !exit) return null
   const keys = [...new Set([...Object.keys(entry || {}), ...Object.keys(exit || {})])]
-    .filter((k) => !["close", "open", "high", "low", "volume"].includes(k))
+    .filter((k) => !["close", "open", "high", "low", "volume", "factor_variables"].includes(k))
+    .filter((k) => {
+      const ev = entry?.[k]
+      const xv = exit?.[k]
+      return (ev != null && typeof ev === "number") || (xv != null && typeof xv === "number")
+    })
     .slice(0, 6)
   if (keys.length === 0) return null
 
@@ -337,18 +380,22 @@ function SnapshotGrid({ entry, exit }: { entry?: Record<string, number>; exit?: 
     <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
       <div className="font-medium text-muted-foreground">진입 지표</div>
       <div className="font-medium text-muted-foreground">청산 지표</div>
-      {keys.map((k) => (
-        <div key={k} className="contents">
-          <div>
-            <span className="text-muted-foreground">{k}:</span>{" "}
-            <span className="font-medium">{entry?.[k]?.toFixed(2) ?? "-"}</span>
+      {keys.map((k) => {
+        const ev = entry?.[k]
+        const xv = exit?.[k]
+        return (
+          <div key={k} className="contents">
+            <div>
+              <span className="text-muted-foreground">{k}:</span>{" "}
+              <span className="font-medium">{typeof ev === "number" ? ev.toFixed(2) : "-"}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">{k}:</span>{" "}
+              <span className="font-medium">{typeof xv === "number" ? xv.toFixed(2) : "-"}</span>
+            </div>
           </div>
-          <div>
-            <span className="text-muted-foreground">{k}:</span>{" "}
-            <span className="font-medium">{exit?.[k]?.toFixed(2) ?? "-"}</span>
-          </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -361,12 +408,19 @@ interface BacktestRankingBoardProps {
 }
 
 const EXIT_REASON_LABELS: Record<string, string> = {
-  "S-STOP": "손절",
-  "S-TRAIL": "트레일링",
-  "S-HALF": "익절",
-  "REBAL-SELL": "리밸런싱",
-  "S-EOD": "장종료",
-  "기간만료 청산": "만료",
+  "B1": "매수",
+  "B2": "추가매수",
+  "S-STOP": "매도:손절",
+  "S-TRAIL": "매도:트레일링",
+  "S-HALF": "매도:익절",
+  "STOP-LOSS": "매도:손절",
+  "REBAL-SELL": "매도:리밸런싱",
+  "REBAL-BUY": "매수:리밸런싱",
+  "S-EOD": "매도:장종료",
+  "CIRCUIT-BREAKER": "매도:서킷브레이커",
+  "ORPHAN-SELL": "매도:데이터소실",
+  "FINAL": "매도:종료청산",
+  "기간만료 청산": "매도:만료",
 }
 
 function BacktestRankingBoard({ trades, interval = "1d" }: BacktestRankingBoardProps) {
@@ -511,6 +565,7 @@ function BacktestRankingBoard({ trades, interval = "1d" }: BacktestRankingBoardP
           ) : (
             <>
               <span className="w-16 text-right">진입일</span>
+              <span className="w-16 text-right">청산일</span>
               <button className="w-10 text-right cursor-pointer" onClick={() => handleSort("holding_days")}>
                 보유<SortArrow active={sortKey === "holding_days"} dir={sortDir} />
               </button>
@@ -590,7 +645,7 @@ function BacktestRankingBoard({ trades, interval = "1d" }: BacktestRankingBoardP
                           <button className="w-20 text-right cursor-pointer" onClick={() => handleSubSort("pnl")}>
                             손익<SortArrow active={subSortKey === "pnl"} dir={subSortDir} />
                           </button>
-                          <span className="w-14 text-right">사유</span>
+                          <span className="w-16 text-right">청산 사유</span>
                         </div>
                         {/* 서브 매매 행 */}
                         {getSortedSubTrades(agg.trades).map((t, j) => {
@@ -606,8 +661,8 @@ function BacktestRankingBoard({ trades, interval = "1d" }: BacktestRankingBoardP
                                 isWorst && "bg-blue-50",
                               )}
                             >
-                              <span className="flex-1 truncate">{t.entry_date?.slice(5, 10)}</span>
-                              <span className="w-16 text-right text-muted-foreground">{t.exit_date?.slice(5, 10)}</span>
+                              <span className="flex-1 truncate">{t.entry_date?.slice(2, 10).replace(/-/g, ".")}</span>
+                              <span className="w-16 text-right text-muted-foreground">{t.exit_date?.slice(2, 10).replace(/-/g, ".")}</span>
                               <span className="w-10 text-right text-muted-foreground">{t.holding_days}일</span>
                               <span className={cn("w-14 text-right font-medium", t.pnl_pct >= 0 ? "text-red-500" : "text-blue-500")}>
                                 {t.pnl_pct >= 0 ? "+" : ""}{t.pnl_pct.toFixed(1)}%
@@ -615,8 +670,8 @@ function BacktestRankingBoard({ trades, interval = "1d" }: BacktestRankingBoardP
                               <span className={cn("w-20 text-right", t.pnl >= 0 ? "text-red-500" : "text-blue-500")}>
                                 {t.pnl >= 0 ? "+" : ""}{Math.round(t.pnl).toLocaleString()}
                               </span>
-                              <span className="w-14 text-right text-[10px] text-muted-foreground truncate">
-                                {EXIT_REASON_LABELS[t.scale_step ?? ""] || EXIT_REASON_LABELS[t.exit_reason ?? ""] || t.exit_reason?.slice(0, 4) || "-"}
+                              <span className="w-16 text-right text-[10px] text-muted-foreground truncate">
+                                {EXIT_REASON_LABELS[t.scale_step ?? ""] || EXIT_REASON_LABELS[t.exit_reason ?? ""] || t.exit_reason?.slice(0, 8) || "-"}
                               </span>
                             </div>
                           )
@@ -656,7 +711,8 @@ function BacktestRankingBoard({ trades, interval = "1d" }: BacktestRankingBoardP
                       <div className="flex-1 min-w-0">
                         <span className="font-medium truncate">{trade.name || trade.symbol}</span>
                       </div>
-                      <span className="w-16 text-right text-muted-foreground">{trade.entry_date?.slice(5, 10)}</span>
+                      <span className="w-16 text-right text-muted-foreground">{trade.entry_date?.slice(2, 10).replace(/-/g, ".")}</span>
+                      <span className="w-16 text-right text-muted-foreground">{trade.exit_date?.slice(2, 10) ?? "-"}</span>
                       <span className="w-10 text-right text-muted-foreground">{trade.holding_days}일</span>
                       <span
                         className={cn(
@@ -681,6 +737,11 @@ function BacktestRankingBoard({ trades, interval = "1d" }: BacktestRankingBoardP
                       <div className="border-t border-b bg-muted/10 px-4 py-3 space-y-3">
                         <TradeJournalChart trade={trade} interval={interval} />
                         <SnapshotGrid entry={trade.entry_snapshot} exit={trade.exit_snapshot} />
+                        <FactorVariableComparison
+                          entrySnapshot={trade.entry_snapshot}
+                          exitSnapshot={trade.exit_snapshot}
+                          defaultOpen={false}
+                        />
                         {symAgg && (
                           <div className="text-[11px] text-muted-foreground border-t pt-2">
                             이 종목 전체:{" "}

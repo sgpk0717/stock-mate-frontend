@@ -1,5 +1,23 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
+
+/** UTC ISO 날짜 → KST "YY.MM.DD HH:mm" (일봉이면 시간 생략) */
+function fmtTradeDate(raw: string | null | undefined): string {
+  if (!raw) return "-"
+  const d = new Date(raw)
+  if (isNaN(d.getTime())) return raw
+  // KST = UTC + 9
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+  const yy = String(kst.getUTCFullYear()).slice(2)
+  const mm = String(kst.getUTCMonth() + 1).padStart(2, "0")
+  const dd = String(kst.getUTCDate()).padStart(2, "0")
+  const hh = String(kst.getUTCHours()).padStart(2, "0")
+  const mi = String(kst.getUTCMinutes()).padStart(2, "0")
+  // 00:00이면 일봉 → 날짜만
+  if (hh === "09" && mi === "00") return `${yy}.${mm}.${dd}`
+  if (hh === "00" && mi === "00") return `${yy}.${mm}.${dd}`
+  return `${yy}.${mm}.${dd} ${hh}:${mi}`
+}
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -16,6 +34,7 @@ import BacktestTradeDetail from "./BacktestTradeDetail"
 
 interface BacktestTradeTableProps {
   trades: BacktestTrade[] | null
+  interval?: string
 }
 
 const PAGE_SIZE = 20
@@ -37,7 +56,7 @@ const STEP_BADGE: Record<
   FINAL: { label: "종료청산", variant: "outline" },
 }
 
-function BacktestTradeTable({ trades }: BacktestTradeTableProps) {
+function BacktestTradeTable({ trades, interval = "1d" }: BacktestTradeTableProps) {
   const [page, setPage] = useState(0)
   const [selectedTrade, setSelectedTrade] = useState<BacktestTrade | null>(null)
 
@@ -140,11 +159,11 @@ function BacktestTradeTable({ trades }: BacktestTradeTableProps) {
                         ) : null}
                       </TableCell>
                     )}
-                    <TableCell className="text-xs">{t.entry_date}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{fmtTradeDate(t.entry_date)}</TableCell>
                     <TableCell className="text-xs text-right">
                       {t.entry_price.toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-xs">{t.exit_date}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{fmtTradeDate(t.exit_date)}</TableCell>
                     <TableCell className="text-xs text-right">
                       {t.exit_price?.toLocaleString() ?? "-"}
                     </TableCell>
@@ -191,6 +210,7 @@ function BacktestTradeTable({ trades }: BacktestTradeTableProps) {
         onOpenChange={(open) => {
           if (!open) setSelectedTrade(null)
         }}
+        interval={interval}
       />
     </Card>
   )

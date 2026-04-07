@@ -8,9 +8,12 @@ import BacktestProgress from "@/components/backtest/BacktestProgress"
 import BacktestSummaryCards from "@/components/backtest/BacktestSummaryCards"
 import BacktestAnalytics from "@/components/backtest/BacktestAnalytics"
 import BacktestTradeTable from "@/components/backtest/BacktestTradeTable"
+import FactorBacktestConfig from "@/components/backtest/FactorBacktestConfig"
+import type { FactorBacktestFormData } from "@/components/backtest/FactorBacktestConfig"
 import { Button } from "@/components/ui/button"
 import { Term } from "@/components/ui/term"
 import { useBacktestRun, useStartBacktest } from "@/hooks/queries"
+import { useBacktestWithFactor } from "@/hooks/queries/use-alpha"
 import { useCreateContextFromBacktest } from "@/hooks/queries/use-trading"
 import type {
   BacktestStrategy,
@@ -30,9 +33,14 @@ const DEFAULT_SCALING: ScalingConfig = {
 }
 const DEFAULT_RISK: RiskManagement = {}
 
+type BacktestMode = "strategy" | "factor"
+
 function BacktestPage() {
   const navigate = useNavigate()
   const createContextMutation = useCreateContextFromBacktest()
+
+  // 모드
+  const [mode, setMode] = useState<BacktestMode>("strategy")
 
   // 전략 상태
   const [strategy, setStrategy] = useState<BacktestStrategy | null>(null)
@@ -56,6 +64,7 @@ function BacktestPage() {
   const [activeRunId, setActiveRunId] = useState<string | null>(null)
   const { data: activeRun } = useBacktestRun(activeRunId)
   const startMutation = useStartBacktest()
+  const factorBacktestMutation = useBacktestWithFactor()
 
   function handleStrategyReady(s: BacktestStrategy, exp: string) {
     setStrategy(s)
@@ -77,7 +86,8 @@ function BacktestPage() {
       risk_management:
         riskManagement.stop_loss_pct != null ||
         riskManagement.trailing_stop_pct != null ||
-        riskManagement.atr_stop_multiplier != null
+        riskManagement.atr_stop_multiplier != null ||
+        riskManagement.max_drawdown_pct != null
           ? riskManagement
           : undefined,
     }
@@ -99,6 +109,51 @@ function BacktestPage() {
     )
   }
 
+  function handleFactorRun(config: FactorBacktestFormData) {
+    // Update progress display values to match factor backtest config
+    setStartDate(config.startDate)
+    setEndDate(config.endDate)
+    setInitialCapital(String(config.initialCapital))
+    setMaxPositions(String(config.maxPositions))
+    setPositionSizePct(String(config.topPct * 100))
+
+    factorBacktestMutation.mutate(
+      {
+        factorId: config.factorId,
+        data: {
+          factor_id: config.factorId,
+          start_date: config.startDate,
+          end_date: config.endDate,
+          symbols: [],
+          initial_capital: config.initialCapital,
+          top_pct: config.topPct,
+          max_positions: config.maxPositions,
+          rebalance_freq: config.rebalanceFreq,
+          band_threshold: config.bandThreshold,
+          interval: config.interval,
+          stop_loss_pct: config.stopLossPct,
+          trailing_stop_pct: config.trailingStopPct,
+          max_drawdown_pct: config.maxDrawdownPct,
+          buy_commission: config.buyCommission,
+          sell_commission: config.sellCommission,
+          slippage_pct: config.slippagePct,
+          intraday_factor_id: config.intradayFactorId,
+          intraday_interval: config.intradayInterval,
+          intraday_entry_threshold: config.intradayEntryThreshold,
+          intraday_exit_threshold: config.intradayExitThreshold,
+          use_limit_orders: config.useLimitOrders,
+          strict_fill: config.strictFill,
+          limit_ttl_bars: config.limitTtlBars,
+        },
+      },
+      {
+        onSuccess: (res) => {
+          setActiveRunId(res.backtest_run_id)
+        },
+      },
+    )
+  }
+
   const resultRef = useRef<HTMLDivElement>(null)
 
   function handleSelectRun(runId: string) {
@@ -115,41 +170,76 @@ function BacktestPage() {
 
   const isRunning =
     startMutation.isPending ||
+    factorBacktestMutation.isPending ||
     activeRun?.status === "PENDING" ||
     activeRun?.status === "RUNNING"
 
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-bold"><Term>백테스트</Term></h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-bold"><Term>백테스트</Term></h1>
+        {/* 모드 탭 */}
+        <div className="flex rounded-lg border p-0.5">
+          <button
+            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+              mode === "strategy"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => setMode("strategy")}
+          >
+            전략 백테스트
+          </button>
+          <button
+            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+              mode === "factor"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => setMode("factor")}
+          >
+            팩터 백테스트
+          </button>
+        </div>
+      </div>
 
       <div className="space-y-6">
         {/* 전략 설정 + 결과 */}
         <div className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2">
-            <StrategyChat onStrategyReady={handleStrategyReady} />
-            <BacktestConfig
-              strategy={strategy}
-              explanation={explanation}
-              startDate={startDate}
-              endDate={endDate}
-              initialCapital={initialCapital}
-              maxPositions={maxPositions}
-              positionSizePct={positionSizePct}
-              onStartDateChange={setStartDate}
-              onEndDateChange={setEndDate}
-              onInitialCapitalChange={setInitialCapital}
-              onMaxPositionsChange={setMaxPositions}
-              onPositionSizePctChange={setPositionSizePct}
-              onRun={handleRun}
-              isRunning={isRunning}
-              positionSizing={positionSizing}
-              onPositionSizingChange={setPositionSizing}
-              scaling={scaling}
-              onScalingChange={setScaling}
-              riskManagement={riskManagement}
-              onRiskManagementChange={setRiskManagement}
-            />
-          </div>
+          {mode === "strategy" ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <StrategyChat onStrategyReady={handleStrategyReady} />
+              <BacktestConfig
+                strategy={strategy}
+                explanation={explanation}
+                startDate={startDate}
+                endDate={endDate}
+                initialCapital={initialCapital}
+                maxPositions={maxPositions}
+                positionSizePct={positionSizePct}
+                onStartDateChange={setStartDate}
+                onEndDateChange={setEndDate}
+                onInitialCapitalChange={setInitialCapital}
+                onMaxPositionsChange={setMaxPositions}
+                onPositionSizePctChange={setPositionSizePct}
+                onRun={handleRun}
+                isRunning={isRunning}
+                positionSizing={positionSizing}
+                onPositionSizingChange={setPositionSizing}
+                scaling={scaling}
+                onScalingChange={setScaling}
+                riskManagement={riskManagement}
+                onRiskManagementChange={setRiskManagement}
+              />
+            </div>
+          ) : (
+            <div className="mx-auto max-w-lg">
+              <FactorBacktestConfig
+                onRun={handleFactorRun}
+                isRunning={isRunning}
+              />
+            </div>
+          )}
 
           {/* 진행률 */}
           <BacktestProgress
@@ -232,9 +322,9 @@ function BacktestPage() {
               <BacktestAnalytics
                 trades={activeRun.trades_summary}
                 equityCurve={activeRun.equity_curve}
-                interval={strategy?.timeframe ?? "1d"}
+                interval={strategy?.timeframe ?? activeRun?.strategy_json?.interval ?? "1d"}
               />
-              <BacktestTradeTable trades={activeRun.trades_summary} />
+              <BacktestTradeTable trades={activeRun.trades_summary} interval={strategy?.timeframe ?? activeRun?.strategy_json?.interval ?? "1d"} />
             </>
           )}
         </div>

@@ -359,6 +359,28 @@ function BacktestConfig({
                     className="mt-0.5 h-7 text-xs"
                   />
                 </div>
+                <div className="col-span-2">
+                  <Label className="text-[10px] text-muted-foreground">
+                    <Term k="MDD">서킷 브레이커</Term> — 포트폴리오 최대 낙폭 (%)
+                  </Label>
+                  <Input
+                    type="number"
+                    value={riskManagement.max_drawdown_pct ?? ""}
+                    onChange={(e) =>
+                      onRiskManagementChange({
+                        ...riskManagement,
+                        max_drawdown_pct: e.target.value
+                          ? Number(e.target.value)
+                          : undefined,
+                      })
+                    }
+                    placeholder="미설정 (비활성)"
+                    min={5}
+                    max={50}
+                    step={1}
+                    className="mt-0.5 h-7 text-xs"
+                  />
+                </div>
               </div>
             </div>
           </div>
