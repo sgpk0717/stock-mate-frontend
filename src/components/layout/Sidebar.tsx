@@ -17,6 +17,7 @@ import {
   RefreshCcw,
   ScrollText,
   Settings,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react"
 import { Term } from "@/components/ui/term"
@@ -71,6 +72,7 @@ const navItems: NavItem[] = [
   { label: "주문내역", icon: ScrollText, iconClass: "text-gray-400", to: "/history" },
   { label: "텔레그램 로그", icon: MessageSquare, iconClass: "text-sky-400", to: "/telegram" },
   { label: "시스템 맵", icon: Network, iconClass: "text-[#4056F4]", to: "/system" },
+  { label: "LLM 사용량", icon: Sparkles, iconClass: "text-[#E3B23C]", to: "/llm-usage" },
   { label: "설정", icon: Settings, iconClass: "text-zinc-400", to: "/settings" },
 ]
 

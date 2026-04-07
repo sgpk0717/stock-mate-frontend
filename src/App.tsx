@@ -15,6 +15,7 @@ import TelegramLogPage from "@/pages/TelegramLogPage"
 import SettingsPage from "@/pages/SettingsPage"
 import SimReplayPage from "@/pages/SimReplayPage"
 import SystemMapPage from "@/pages/SystemMapPage"
+import LLMUsagePage from "@/pages/LLMUsagePage"
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
           <Route path="/telegram" element={<TelegramLogPage />} />
           <Route path="/sim-replay" element={<SimReplayPage />} />
           <Route path="/system" element={<SystemMapPage />} />
+          <Route path="/llm-usage" element={<LLMUsagePage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

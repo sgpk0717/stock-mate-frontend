@@ -25,6 +25,24 @@ export function useCandles(
   })
 }
 
+export function useCandlesByDateRange(
+  symbol: string,
+  interval: string,
+  startDate: string | undefined,
+  endDate: string | undefined,
+) {
+  return useQuery({
+    queryKey: ["candles-range", symbol, interval, startDate, endDate],
+    queryFn: async () => {
+      const result = await fetchCandles(symbol, interval, 0, undefined, startDate!, endDate!)
+      if (Array.isArray(result)) return { candles: result, indicators: undefined }
+      return result
+    },
+    enabled: !!symbol && !!startDate && !!endDate,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 export function useTicks(symbol: string, limit = 1000) {
   return useQuery({
     queryKey: ["ticks", symbol, limit],

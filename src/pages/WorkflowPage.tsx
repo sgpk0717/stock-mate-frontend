@@ -1,19 +1,26 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import {
   useWorkflowStatus,
   useWorkflowHistory,
   useWorkflowEvents,
   useBestFactors,
   useTriggerWorkflow,
+  useMiningConfig,
+  useUpdateMiningConfig,
   useMcpAudit,
   useTradingStatus,
+  useTradingAutoStart,
+  useSetTradingAutoStart,
   useCollectors,
   useRestartCollector,
   useActiveJobs,
   useTriggerCollect,
   useCancelJob,
+  useDismissJob,
 } from "@/hooks/queries"
 import { useTelegramLogs } from "@/hooks/queries/use-telegram"
+import { useStopFactory, useStartFactory, useFactoryStatus } from "@/hooks/queries/use-alpha"
+import type { AlphaFactoryStartRequest } from "@/types/alpha"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,12 +34,8 @@ import {
 } from "@/components/ui/table"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { formatPercent, formatCollectorTime, formatDateStr } from "@/lib/format"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
-import { Input } from "@/components/ui/input"
-import { ko } from "date-fns/locale"
 import { format } from "date-fns"
+import CollectorDateSelector, { useCollectorDate } from "@/components/ui/collector-date-selector"
 import type { ActiveJob } from "@/api/scheduler"
 import {
   CheckCircle2,
@@ -56,7 +59,10 @@ import {
   TrendingUp,
   Play,
   Square,
-  CalendarIcon,
+  Settings,
+  Loader2,
+  Info,
+  X,
 } from "lucide-react"
 
 // ─── 상수 ────────────────────────────────────────────────────────────────────
@@ -640,10 +646,17 @@ function OpenClawSchedulePanel({
       <CardContent>
         <div className="space-y-2">
           {OPENCLAW_CRONS.map((cron) => {
-            // 오늘 해당 tool_name으로 실행된 기록 중 가장 최근
-            const executed = todayLogs
-              .filter((l) => l.tool_name === cron.tool)
-              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+            // 오늘 해당 tool_name으로 실행된 기록 중 예정 시각(cron.hour)에 가장 가까운 것
+            const candidates = todayLogs.filter((l) => l.tool_name === cron.tool)
+            const executed = candidates.length > 0
+              ? candidates.reduce((best, l) => {
+                  const getKSTHour = (iso: string) =>
+                    Number(new Date(iso).toLocaleString("en", { timeZone: "Asia/Seoul", hour: "numeric", hour12: false }))
+                  const dist = Math.abs(getKSTHour(l.created_at) - cron.hour)
+                  const bestDist = Math.abs(getKSTHour(best.created_at) - cron.hour)
+                  return dist < bestDist ? l : best
+                })
+              : undefined
 
             return (
               <div
@@ -933,6 +946,8 @@ const COLLECTOR_STATUS_STYLE: Record<string, { bg: string; label: string }> = {
 const COLLECTOR_ORDER = [
   "intraday_candle",
   "program_trading",
+  "discussion",
+  "news_api",
   "daily_candle",
   "minute_candle",
   "news",
@@ -942,7 +957,7 @@ const COLLECTOR_ORDER = [
 ]
 
 // 배치 수집기 ID (수동 트리거 대상)
-const BATCH_COLLECTORS = ["daily_candle", "minute_candle", "news", "margin_short", "investor", "dart_financial"]
+const BATCH_COLLECTORS = ["daily_candle", "minute_candle", "news", "margin_short", "investor", "dart_financial", "program_trading"]
 const COLLECTOR_LABELS: Record<string, string> = {
   daily_candle: "일봉", minute_candle: "분봉", news: "뉴스",
   margin_short: "신용/공매도", investor: "투자자 수급", dart_financial: "DART 재무",
@@ -968,27 +983,15 @@ function CollectorsPanel({
   onRestart: (id: string) => void
   isRestarting: boolean
 }) {
-  // 날짜 선택 상태
-  const [dateMode, setDateMode] = useState<"single" | "range" | "recent">("single")
-  const [singleDate, setSingleDate] = useState<Date | undefined>(undefined)
-  const [rangeFrom, setRangeFrom] = useState<Date | undefined>(undefined)
-  const [rangeTo, setRangeTo] = useState<Date | undefined>(undefined)
-  const [recentDays, setRecentDays] = useState(7)
-  const [calendarOpen, setCalendarOpen] = useState(false)
-  const [rangeFromOpen, setRangeFromOpen] = useState(false)
-  const [rangeToOpen, setRangeToOpen] = useState(false)
+  // 날짜 선택 (캡슐화된 상태)
+  const [dateVal, setDateVal] = useCollectorDate()
 
   const { data: activeJobs } = useActiveJobs()
   const triggerCollect = useTriggerCollect()
   const cancelJob = useCancelJob()
+  const dismissJob = useDismissJob()
 
-  // 날짜가 유효한지
-  const dateValid = useMemo(() => {
-    if (dateMode === "single") return !!singleDate
-    if (dateMode === "range") return !!rangeFrom && !!rangeTo
-    if (dateMode === "recent") return recentDays >= 1 && recentDays <= 365
-    return false
-  }, [dateMode, singleDate, rangeFrom, rangeTo, recentDays])
+  const dateValid = dateVal.valid
 
   // 수집기가 실행 중인지 체크
   const isCollectorBusy = (collectorId: string) =>
@@ -998,17 +1001,16 @@ function CollectorsPanel({
 
   // 수집 트리거
   const handleTrigger = (collectorId: string) => {
-    const fmtDate = (d: Date) => format(d, "yyyyMMdd")
     const req: import("@/api/scheduler").ManualTriggerRequest = {
       collector: collectorId,
-      mode: dateMode,
+      mode: dateVal.mode,
     }
-    if (dateMode === "single" && singleDate) req.date = fmtDate(singleDate)
-    if (dateMode === "range" && rangeFrom && rangeTo) {
-      req.date_from = fmtDate(rangeFrom)
-      req.date_to = fmtDate(rangeTo)
+    if (dateVal.mode === "single" && dateVal.date) req.date = dateVal.date
+    if (dateVal.mode === "range" && dateVal.dateFrom && dateVal.dateTo) {
+      req.date_from = dateVal.dateFrom
+      req.date_to = dateVal.dateTo
     }
-    if (dateMode === "recent") req.recent_days = recentDays
+    if (dateVal.mode === "recent") req.recent_days = dateVal.recentDays
     triggerCollect.mutate(req)
   }
 
@@ -1023,16 +1025,6 @@ function CollectorsPanel({
     (c) => c.status === "idle" || c.status === "completed" || c.status === "collecting" || c.status === "running" || c.status === "waiting"
   ).length
   const errorCount = entries.filter((c) => c.status === "error").length
-
-  // 날짜 선택 라벨
-  const dateSummary = (() => {
-    if (dateMode === "single") return singleDate ? format(singleDate, "yyyy-MM-dd") : "날짜 미선택"
-    if (dateMode === "range") {
-      if (rangeFrom && rangeTo) return `${format(rangeFrom, "yy.MM.dd")} ~ ${format(rangeTo, "yy.MM.dd")}`
-      return "기간 미선택"
-    }
-    return `최근 ${recentDays}일`
-  })()
 
   return (
     <Card>
@@ -1052,91 +1044,7 @@ function CollectorsPanel({
       </CardHeader>
       <CardContent className="space-y-4">
         {/* ── 날짜 선택 UI ── */}
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-2.5">
-          <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
-          <Select value={dateMode} onValueChange={(v) => setDateMode(v as typeof dateMode)}>
-            <SelectTrigger className="h-7 w-[110px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="single">특정일자</SelectItem>
-              <SelectItem value="range">기간</SelectItem>
-              <SelectItem value="recent">최근 N일</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {dateMode === "single" && (
-            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-              <PopoverTrigger asChild>
-                <button className="flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1 text-xs hover:bg-muted">
-                  {singleDate ? format(singleDate, "yyyy-MM-dd") : "날짜 선택"}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={singleDate}
-                  onSelect={(d) => { setSingleDate(d); setCalendarOpen(false) }}
-                  locale={ko}
-                  defaultMonth={singleDate ?? new Date()}
-                />
-              </PopoverContent>
-            </Popover>
-          )}
-
-          {dateMode === "range" && (
-            <div className="flex items-center gap-1">
-              <Popover open={rangeFromOpen} onOpenChange={setRangeFromOpen}>
-                <PopoverTrigger asChild>
-                  <button className="rounded-md border bg-background px-2.5 py-1 text-xs hover:bg-muted">
-                    {rangeFrom ? format(rangeFrom, "yy.MM.dd") : "시작일"}
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={rangeFrom}
-                    onSelect={(d) => { setRangeFrom(d); setRangeFromOpen(false) }}
-                    locale={ko}
-                  />
-                </PopoverContent>
-              </Popover>
-              <span className="text-xs text-muted-foreground">~</span>
-              <Popover open={rangeToOpen} onOpenChange={setRangeToOpen}>
-                <PopoverTrigger asChild>
-                  <button className="rounded-md border bg-background px-2.5 py-1 text-xs hover:bg-muted">
-                    {rangeTo ? format(rangeTo, "yy.MM.dd") : "종료일"}
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={rangeTo}
-                    onSelect={(d) => { setRangeTo(d); setRangeToOpen(false) }}
-                    locale={ko}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          )}
-
-          {dateMode === "recent" && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">최근</span>
-              <Input
-                type="number"
-                min={1}
-                max={365}
-                value={recentDays}
-                onChange={(e) => setRecentDays(Math.max(1, Math.min(365, Number(e.target.value) || 1)))}
-                className="h-7 w-16 text-xs"
-              />
-              <span className="text-xs text-muted-foreground">일</span>
-            </div>
-          )}
-
-          <span className="ml-auto text-[10px] text-muted-foreground">{dateSummary}</span>
-        </div>
+        <CollectorDateSelector value={dateVal} onChange={setDateVal} />
 
         {/* ── 수집기 카드 그리드 ── */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -1144,8 +1052,9 @@ function CollectorsPanel({
             const style = COLLECTOR_STATUS_STYLE[c.status] ?? COLLECTOR_STATUS_STYLE.unknown
             const isError = c.status === "error"
             const isBatch = c.type === "batch"
+            const canManualTrigger = isBatch || BATCH_COLLECTORS.includes(c.id)
             const busy = isCollectorBusy(c.id)
-            const canTrigger = isBatch && dateValid && !busy
+            const canTrigger = canManualTrigger && dateValid && !busy
             const hasProgress = isBatch && (c.total ?? 0) > 0
 
             const progressPct = hasProgress
@@ -1203,7 +1112,7 @@ function CollectorsPanel({
 
                 {/* 버튼 영역 */}
                 <div className="mt-2 flex gap-1.5">
-                  {isBatch && (
+                  {canManualTrigger && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1234,7 +1143,92 @@ function CollectorsPanel({
         </div>
 
         {/* ── 활성 수집 작업 패널 ── */}
-        <ActiveJobsPanel jobs={activeJobs ?? []} onCancel={(id) => cancelJob.mutate(id)} isCancelling={cancelJob.isPending} />
+        <ActiveJobsPanel jobs={activeJobs ?? []} onCancel={(id) => cancelJob.mutate(id)} onDismiss={(id) => dismissJob.mutate(id)} isCancelling={cancelJob.isPending} />
+
+        {/* ── 장중 분봉 수집 로그 (JobLogView 스타일 통일) ── */}
+        {collectors["intraday_candle"] && (() => {
+          const ic = collectors["intraday_candle"]
+          // 종료/알수없음 상태면 로그 패널 숨김
+          if (ic.status === "stopped" || ic.status === "unknown") return null
+          const logs = (ic as Record<string, unknown>).logs as string[] | undefined
+          if (!logs || logs.length === 0) return null
+
+          const LOG_PANEL_LABEL: Record<string, string> = { collecting: "수집 중", idle: "수집 대기" }
+          const style = COLLECTOR_STATUS_STYLE[ic.status] ?? COLLECTOR_STATUS_STYLE.unknown
+          const label = LOG_PANEL_LABEL[ic.status] ?? style.label
+
+          return (
+            <div className="rounded-lg border p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">장중 분봉</span>
+                  <Badge className={`${style.bg} text-[10px]`}>{label}</Badge>
+                  <span className="text-[10px] text-muted-foreground">자동</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  {ic.symbols_total}종목 · 최근 {ic.last_at}
+                </span>
+              </div>
+              <JobLogView logs={logs} />
+            </div>
+          )
+        })()}
+
+        {/* ── 종토방 수집 로그 ── */}
+        {collectors["discussion"] && (() => {
+          const dc = collectors["discussion"]
+          if (dc.status === "stopped" || dc.status === "unknown") return null
+          const logs = (dc as Record<string, unknown>).logs as string[] | undefined
+          if (!logs || logs.length === 0) return null
+
+          const LOG_PANEL_LABEL: Record<string, string> = { collecting: "수집 중", idle: "수집 대기" }
+          const style = COLLECTOR_STATUS_STYLE[dc.status] ?? COLLECTOR_STATUS_STYLE.unknown
+          const label = LOG_PANEL_LABEL[dc.status] ?? style.label
+
+          return (
+            <div className="rounded-lg border p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">종토방</span>
+                  <Badge className={`${style.bg} text-[10px]`}>{label}</Badge>
+                  <span className="text-[10px] text-muted-foreground">24시간</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  최근 {dc.last_at}
+                </span>
+              </div>
+              <JobLogView logs={logs} />
+            </div>
+          )
+        })()}
+
+        {/* ── 공시+뉴스 수집 로그 ── */}
+        {collectors["news_api"] && (() => {
+          const nc = collectors["news_api"]
+          if (nc.status === "stopped" || nc.status === "unknown") return null
+          const logs = (nc as Record<string, unknown>).logs as string[] | undefined
+          if (!logs || logs.length === 0) return null
+
+          const LOG_PANEL_LABEL: Record<string, string> = { collecting: "수집 중", idle: "수집 대기" }
+          const style = COLLECTOR_STATUS_STYLE[nc.status] ?? COLLECTOR_STATUS_STYLE.unknown
+          const label = LOG_PANEL_LABEL[nc.status] ?? style.label
+
+          return (
+            <div className="rounded-lg border p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">공시+뉴스</span>
+                  <Badge className={`${style.bg} text-[10px]`}>{label}</Badge>
+                  <span className="text-[10px] text-muted-foreground">24시간</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  최근 {nc.last_at}
+                </span>
+              </div>
+              <JobLogView logs={logs} />
+            </div>
+          )
+        })()}
       </CardContent>
     </Card>
   )
@@ -1244,10 +1238,12 @@ function CollectorsPanel({
 function ActiveJobsPanel({
   jobs,
   onCancel,
+  onDismiss,
   isCancelling,
 }: {
   jobs: ActiveJob[]
   onCancel: (id: string) => void
+  onDismiss: (id: string) => void
   isCancelling: boolean
 }) {
   if (jobs.length === 0) return null
@@ -1291,18 +1287,29 @@ function ActiveJobsPanel({
                   <Badge variant="outline" className="text-[10px]">자동</Badge>
                 )}
               </div>
-              {j.status === "running" && (
+              <div className="flex items-center gap-1">
+                {j.status === "running" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-[11px] text-red-600 hover:text-red-700"
+                    onClick={() => onCancel(j.job_id)}
+                    disabled={isCancelling}
+                  >
+                    <Square className="mr-1 h-3 w-3" />
+                    중단하기
+                  </Button>
+                )}
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  className="h-6 text-[11px] text-red-600 hover:text-red-700"
-                  onClick={() => onCancel(j.job_id)}
-                  disabled={isCancelling}
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-red-600"
+                  onClick={() => onDismiss(j.job_id)}
+                  title="목록에서 제거"
                 >
-                  <Square className="mr-1 h-3 w-3" />
-                  중단하기
+                  <X className="h-3.5 w-3.5" />
                 </Button>
-              )}
+              </div>
             </div>
 
             {/* 진행 바 */}
@@ -1347,18 +1354,340 @@ function ActiveJobsPanel({
 
             {/* 작업 로그 */}
             {j.logs && j.logs.length > 0 && (
-              <div className="mt-2 max-h-32 overflow-y-auto rounded border bg-gray-950 p-2">
-                {j.logs.map((line, idx) => (
-                  <p key={idx} className="font-mono text-[10px] leading-4 text-gray-300">
-                    {line}
-                  </p>
-                ))}
-              </div>
+              <JobLogView logs={j.logs} />
             )}
           </div>
         )
       })}
     </div>
+  )
+}
+
+/** 로그 라인 유형 판별 → 스타일 */
+function classifyLog(line: string): { color: string; icon: string; dim: boolean } {
+  const body = line.replace(/^\[\d{2}:\d{2}:\d{2}\]\s*/, "")
+
+  // 완료/성공 (에러보다 먼저 — "완료 — 성공 0, 실패 0"도 완료로 처리)
+  if (/완료|성공|done/.test(body) && !/실패 [1-9]|ERROR/.test(body))
+    return { color: "text-emerald-400", icon: "check", dim: false }
+  // 에러/실패
+  if (/실패|ERROR|에러|오류|OPEN/.test(body))
+    return { color: "text-red-400", icon: "x", dim: false }
+  // 감성 분석 (LLM)
+  if (/감성 분석|LLM/.test(body))
+    return { color: "text-amber-300", icon: "brain", dim: false }
+  // 마이닝 Phase 단계
+  if (/Phase \d/.test(body))
+    return { color: "text-violet-400", icon: "arrow", dim: false }
+  // 마이닝 세대/사이클 시작
+  if (/세대 \d+.*시작|사이클 \d+ 시작|run_generation/.test(body))
+    return { color: "text-cyan-300", icon: "play", dim: false }
+  // 마이닝 IC/CPCV 평가
+  if (/IC 평가|CPCV|배치.*평가|Walk-Forward/.test(body))
+    return { color: "text-blue-300", icon: "arrow", dim: false }
+  // 마이닝 엘리트/모집단
+  if (/엘리트|모집단|로드 완료/.test(body))
+    return { color: "text-gray-400", icon: "dot", dim: false }
+  // 마이닝 데이터 로드
+  if (/Enriched|캔들 로드|데이터 로드|Train\/Val/.test(body))
+    return { color: "text-teal-400", icon: "arrow", dim: false }
+  // 마이닝 엔진/벡터 메모리
+  if (/진화 엔진|벡터 메모리|초기화/.test(body))
+    return { color: "text-gray-400", icon: "dot", dim: false }
+  // 진행 카운터 [N/M]
+  if (/^\s*\[\d+\/\d+\]/.test(body))
+    return { color: "text-blue-300", icon: "arrow", dim: false }
+  // 크롤링 상세 (네이버, BigKinds, DART)
+  if (/네이버|BigKinds|DART|크롤링/.test(body))
+    return { color: "text-gray-400", icon: "dot", dim: false }
+  // 수집 시작
+  if (/수집 시작|수집기/.test(body))
+    return { color: "text-cyan-300", icon: "play", dim: false }
+  // 대기
+  if (/대기|토큰/.test(body))
+    return { color: "text-yellow-500", icon: "clock", dim: false }
+  // 들여쓰기 상세 로그
+  if (/^\s{2,}/.test(body))
+    return { color: "text-gray-500", icon: "dot", dim: true }
+
+  return { color: "text-gray-300", icon: "dot", dim: false }
+}
+
+const LOG_ICONS: Record<string, string> = {
+  x: "\u2718",       // ✘
+  check: "\u2714",   // ✔
+  brain: "\u2726",   // ✦
+  arrow: "\u25B8",   // ▸
+  dot: "\u00B7",     // ·
+  play: "\u25B6",    // ▶
+  clock: "\u23F3",   // ⏳
+}
+
+/** 수집 작업 로그 (컨테이너 내부 자동 스크롤, 색상 코딩) */
+function JobLogView({ logs }: { logs: string[] }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [logs.length])
+
+  return (
+    <div ref={containerRef} className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-gray-800 bg-gray-950 px-3 py-2.5">
+      {logs.map((line, idx) => {
+        const { color, icon, dim } = classifyLog(line)
+        // 타임스탬프 분리
+        const tsMatch = line.match(/^(\[\d{2}:\d{2}:\d{2}\])\s*(.*)$/)
+        const ts = tsMatch?.[1] ?? ""
+        const body = tsMatch?.[2] ?? line
+
+        return (
+          <p key={idx} className={`font-mono text-xs leading-5 ${dim ? "opacity-60" : ""}`}>
+            {ts && <span className="text-gray-600">{ts} </span>}
+            <span className={`mr-1 ${color}`}>{LOG_ICONS[icon] ?? "·"}</span>
+            <span className={color}>{body}</span>
+          </p>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── MiningConfigPanel ───────────────────────────────────────────────────────
+
+function comb(n: number, k: number): number {
+  if (k > n) return 0
+  if (k === 0 || k === n) return 1
+  let result = 1
+  for (let i = 0; i < k; i++) {
+    result = (result * (n - i)) / (i + 1)
+  }
+  return Math.round(result)
+}
+
+const INTERVAL_OPTIONS = [
+  { value: "5m", label: "5분봉" },
+  { value: "1d", label: "일봉" },
+] as const
+
+function MiningConfigPanel({ miningRunning }: { miningRunning: boolean }) {
+  const { data: config, isLoading, isError, error } = useMiningConfig()
+  const updateConfig = useUpdateMiningConfig()
+  const currentInterval = config?.interval ?? "5m"
+  const { data: factoryStatus } = useFactoryStatus(currentInterval)
+  const stopFactory = useStopFactory()
+  const startFactory = useStartFactory()
+  const factoryRunning = factoryStatus?.running ?? false
+  const userStopped = factoryStatus?.user_stopped ?? false
+  const disableToggle = factoryRunning || updateConfig.isPending
+
+  const handleIntervalChange = (interval: string) => {
+    if (disableToggle) return
+    if (config?.interval === interval) return
+    updateConfig.mutate(interval)
+  }
+
+  const handleStop = () => {
+    stopFactory.mutate(currentInterval)
+  }
+
+  const handleStart = () => {
+    if (!config) return
+    const today = new Date().toISOString().slice(0, 10)
+    const req: AlphaFactoryStartRequest = {
+      context: "워크플로우 수동 시작",
+      universe: "KOSPI200",
+      start_date: config.interval === "1d" ? "2014-01-01" : "2025-01-01",
+      end_date: today,
+      interval_minutes: 0,
+      max_iterations_per_cycle: 5,
+      ic_threshold: 0.03,
+      orthogonality_threshold: 0.7,
+      enable_crossover: true,
+      data_interval: config.interval,
+    }
+    startFactory.mutate(req)
+  }
+
+  const logLines = factoryStatus?.log_lines ?? []
+
+  const paths = config ? comb(config.cpcv_n_groups, config.cpcv_n_test) : 0
+  const actionPending = stopFactory.isPending || startFactory.isPending
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Settings className="h-4 w-4 text-[#4056F4]" />
+          마이닝 설정
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading && (
+          <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            설정 불러오는 중...
+          </div>
+        )}
+
+        {isError && (
+          <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">
+            설정을 불러올 수 없습니다: {error instanceof Error ? error.message : "알 수 없는 오류"}
+          </div>
+        )}
+
+        {config && (
+          <>
+            {/* 데이터 주기 */}
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">데이터 주기</p>
+              <div className="flex">
+                {INTERVAL_OPTIONS.map((opt, idx) => {
+                  const isSelected = config.interval === opt.value
+                  const isFirst = idx === 0
+                  const isLast = idx === INTERVAL_OPTIONS.length - 1
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={disableToggle}
+                      onClick={() => handleIntervalChange(opt.value)}
+                      className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                        isFirst ? "rounded-l-md" : ""
+                      }${isLast ? "rounded-r-md" : ""} ${
+                        isSelected
+                          ? "bg-[#4056F4] text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      } ${
+                        disableToggle
+                          ? "cursor-not-allowed opacity-60"
+                          : "cursor-pointer"
+                      } border ${isSelected ? "border-[#4056F4]" : "border-gray-200"} ${
+                        !isFirst ? "-ml-px" : ""
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* 파라미터 요약 */}
+            <p className="text-xs text-muted-foreground">
+              CPCV {config.cpcv_n_groups}그룹 · {paths}경로 · 모집단 {config.population_size} · 최대 {config.max_iterations}세대
+            </p>
+
+            {/* ── 마이닝 제어 ── */}
+            <div className="space-y-3 rounded-md border p-3">
+              {/* 상태 + 시작/중단 버튼 (항상 표시) */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {factoryRunning ? (
+                    <Badge variant="outline" className="border-green-300 bg-green-50 text-green-700 text-[10px]">
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      가동 중
+                    </Badge>
+                  ) : userStopped ? (
+                    <Badge variant="outline" className="border-orange-300 bg-orange-50 text-orange-700 text-[10px]">
+                      수동 중단됨
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px]">
+                      대기
+                    </Badge>
+                  )}
+                  {factoryRunning && factoryStatus && (
+                    <span className="text-[11px] text-muted-foreground">
+                      사이클 {factoryStatus.cycles_completed ?? 0} · 발견 {factoryStatus.factors_discovered_total ?? 0}개 · 세대 {factoryStatus.generation ?? 0}
+                    </span>
+                  )}
+                </div>
+                {factoryRunning ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-3 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={handleStop}
+                    disabled={actionPending}
+                  >
+                    {stopFactory.isPending ? (
+                      <><Loader2 className="mr-1 h-3 w-3 animate-spin" />중단 중...</>
+                    ) : (
+                      <><Square className="mr-1 h-3 w-3" />중단</>
+                    )}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-3 text-xs text-[#4056F4] border-[#4056F4]/30 hover:bg-[#4056F4]/5"
+                    onClick={handleStart}
+                    disabled={actionPending}
+                  >
+                    {startFactory.isPending ? (
+                      <><Loader2 className="mr-1 h-3 w-3 animate-spin" />시작 중...</>
+                    ) : (
+                      <><Play className="mr-1 h-3 w-3" />시작</>
+                    )}
+                  </Button>
+                )}
+              </div>
+
+              {/* 실시간 로그 (항상 표시, JobLogView 스타일) */}
+              {actionPending ? (
+                <div className="rounded-lg border border-gray-800 bg-gray-950 px-3 py-2.5">
+                  <p className="font-mono text-xs leading-5 text-orange-300">
+                    {stopFactory.isPending
+                      ? "⏳ 팩토리 중단 명령 전송 중... (Worker 응답 대기, 최대 15초)"
+                      : "⏳ 팩토리 시작 명령 전송 중... (데이터 로딩 대기)"}
+                  </p>
+                </div>
+              ) : logLines.length > 0 ? (
+                <JobLogView logs={logLines} />
+              ) : factoryRunning ? (
+                <div className="rounded-lg border border-gray-800 bg-gray-950 px-3 py-2.5">
+                  <p className="font-mono text-xs leading-5 text-gray-500">백엔드 응답 대기 중...</p>
+                </div>
+              ) : userStopped ? (
+                <div className="rounded-lg border border-gray-800 bg-gray-950 px-3 py-2.5">
+                  <p className="font-mono text-xs leading-5 text-orange-400">수동 중단 상태 — 시작 버튼으로 재개하거나, 다음 장 전(08:30)에 자동 해제</p>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-gray-800 bg-gray-950 px-3 py-2.5">
+                  <p className="font-mono text-xs leading-5 text-gray-500">마이닝 대기 중 — 시작 버튼으로 즉시 실행하거나, 워크플로우가 자동 시작</p>
+                </div>
+              )}
+            </div>
+
+            {/* 뮤테이션 에러 */}
+            {updateConfig.isError && (
+              <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">
+                변경 실패: {updateConfig.error instanceof Error ? updateConfig.error.message : "알 수 없는 오류"}
+              </div>
+            )}
+            {stopFactory.isError && (
+              <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">
+                중단 실패: {stopFactory.error instanceof Error ? stopFactory.error.message : "알 수 없는 오류"}
+              </div>
+            )}
+            {startFactory.isError && (
+              <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">
+                시작 실패: {startFactory.error instanceof Error ? startFactory.error.message : "알 수 없는 오류"}
+              </div>
+            )}
+
+            {/* 안내 문구 */}
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Info className="h-3 w-3 shrink-0" />
+              {factoryRunning
+                ? "마이닝을 중단하면 인터벌을 변경할 수 있습니다"
+                : "다음 마이닝부터 적용됩니다"}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -1374,6 +1703,8 @@ function WorkflowPage() {
   const { data: telegramLogs } = useTelegramLogs({ limit: 100 })
   const { data: mcpAuditLogs } = useMcpAudit({ limit: 100 })
   const { data: tradingSessions } = useTradingStatus()
+  const { data: tradingAutoStart } = useTradingAutoStart()
+  const setTradingAuto = useSetTradingAutoStart()
   const { data: collectorsData } = useCollectors()
   const restartCollector = useRestartCollector()
   const trigger = useTriggerWorkflow()
@@ -1462,6 +1793,9 @@ function WorkflowPage() {
         phaseTimestamps={phaseTimestamps}
       />
 
+      {/* 마이닝 설정 */}
+      <MiningConfigPanel miningRunning={status?.mining_running ?? false} />
+
       {/* OpenClaw 크론잡 */}
       <OpenClawSchedulePanel
         auditLogs={(mcpAuditLogs ?? []) as {
@@ -1472,6 +1806,32 @@ function WorkflowPage() {
           created_at: string
         }[]}
       />
+
+      {/* 자동매매 수동중단 */}
+      {tradingAutoStart && tradingAutoStart.user_stopped && (
+        <Card className="border-orange-200 bg-orange-50/30">
+          <CardContent className="flex items-center justify-between py-3">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="border-orange-300 bg-orange-50 text-orange-700 text-[10px]">
+                자동매매 중단됨
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                자동매매 자동시작이 비활성화되어 있습니다. 다음 장 전(08:30)에 자동 해제됩니다.
+              </span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => setTradingAuto.mutate(true)}
+              disabled={setTradingAuto.isPending}
+            >
+              <Play className="mr-1 h-3 w-3" />
+              자동매매 재개
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 현재 상태 + 단계별 결과 */}
       <div className="flex gap-4">
@@ -1531,6 +1891,15 @@ function WorkflowPage() {
               {label}
             </Button>
           ))}
+          <Button
+            variant={tradingAutoStart?.user_stopped ? "default" : "outline"}
+            size="sm"
+            className={tradingAutoStart?.user_stopped ? "bg-orange-600 hover:bg-orange-700" : "border-orange-300 text-orange-700 hover:bg-orange-50"}
+            onClick={() => setTradingAuto.mutate(tradingAutoStart?.user_stopped ? true : false)}
+            disabled={setTradingAuto.isPending}
+          >
+            {tradingAutoStart?.user_stopped ? "자동매매 재개" : "자동매매 중단"}
+          </Button>
         </CardContent>
       </Card>
 

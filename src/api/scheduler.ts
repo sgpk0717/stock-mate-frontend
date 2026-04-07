@@ -45,3 +45,9 @@ export async function fetchActiveJobs(): Promise<ActiveJob[]> {
 export async function cancelJob(jobId: string): Promise<{ success: boolean; message: string }> {
   return apiFetch(`/scheduler/jobs/${jobId}/cancel`, { method: "POST" })
 }
+
+export async function dismissJob(jobId: string): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`/api/scheduler/jobs/${jobId}`, { method: "DELETE" })
+  if (!res.ok) throw new Error("삭제 실패")
+  return res.json()
+}

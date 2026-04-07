@@ -108,8 +108,16 @@ export async function fetchCandles(
   interval = "1d",
   count = 200,
   indicators?: string[],
+  startDate?: string,
+  endDate?: string,
 ): Promise<CandleData[] | CandleWithIndicators> {
-  const params = new URLSearchParams({ interval, count: String(count) })
+  const params = new URLSearchParams({ interval })
+  if (startDate && endDate) {
+    params.set("start_date", startDate)
+    params.set("end_date", endDate)
+  } else {
+    params.set("count", String(count))
+  }
   if (indicators?.length) params.set("indicators", indicators.join(","))
   return apiFetch(`/stocks/${symbol}/candles?${params}`)
 }

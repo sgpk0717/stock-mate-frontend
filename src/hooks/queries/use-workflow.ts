@@ -5,6 +5,8 @@ import {
   fetchWorkflowHistory,
   fetchWorkflowEvents,
   fetchBestFactors,
+  fetchMiningConfig,
+  updateMiningConfig,
 } from "@/api/workflow"
 
 export function useWorkflowStatus() {
@@ -43,6 +45,23 @@ export function useTriggerWorkflow() {
     mutationFn: (phase: string) => triggerWorkflowPhase(phase),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workflow"] })
+    },
+  })
+}
+
+export function useMiningConfig() {
+  return useQuery({
+    queryKey: ["workflow", "mining-config"],
+    queryFn: fetchMiningConfig,
+  })
+}
+
+export function useUpdateMiningConfig() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (interval: string) => updateMiningConfig(interval),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workflow", "mining-config"] })
     },
   })
 }

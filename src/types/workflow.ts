@@ -62,3 +62,12 @@ export interface WorkflowTriggerResponse {
   phase: string
   message: string
 }
+
+export interface MiningConfig {
+  interval: string
+  cpcv_n_groups: number
+  cpcv_n_test: number
+  cpcv_embargo_days: number
+  population_size: number
+  max_iterations: number
+}

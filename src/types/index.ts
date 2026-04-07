@@ -176,6 +176,7 @@ export interface RiskManagement {
   stop_loss_pct?: number
   trailing_stop_pct?: number
   atr_stop_multiplier?: number
+  max_drawdown_pct?: number
 }
 
 export interface BacktestStrategy {
@@ -269,8 +270,8 @@ export interface BacktestTrade {
   entry_reason?: TradeConditionResult[] | null
   exit_reason?: string
   exit_reason_detail?: TradeConditionResult[] | null
-  entry_snapshot?: Record<string, number> | null
-  exit_snapshot?: Record<string, number> | null
+  entry_snapshot?: Record<string, number | Record<string, number>> | null
+  exit_snapshot?: Record<string, number | Record<string, number>> | null
 }
 
 export interface StrategyPreset {

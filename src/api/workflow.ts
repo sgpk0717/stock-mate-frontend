@@ -5,6 +5,7 @@ import type {
   WorkflowEvent,
   BestFactor,
   WorkflowTriggerResponse,
+  MiningConfig,
 } from "@/types/workflow"
 
 export async function fetchWorkflowStatus(): Promise<WorkflowStatus> {
@@ -35,4 +36,16 @@ export async function fetchWorkflowEvents(
 
 export async function fetchBestFactors(): Promise<BestFactor[]> {
   return apiFetch<BestFactor[]>("/workflow/best-factors")
+}
+
+export async function fetchMiningConfig(): Promise<MiningConfig> {
+  return apiFetch<MiningConfig>("/workflow/mining-config")
+}
+
+export async function updateMiningConfig(interval: string): Promise<MiningConfig> {
+  return apiFetch<MiningConfig>("/workflow/mining-config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ interval }),
+  })
 }

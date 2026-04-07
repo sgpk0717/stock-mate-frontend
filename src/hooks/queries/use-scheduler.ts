@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { cancelJob, fetchActiveJobs, triggerCollect } from "@/api/scheduler"
+import { cancelJob, dismissJob, fetchActiveJobs, triggerCollect } from "@/api/scheduler"
 import type { ManualTriggerRequest } from "@/api/scheduler"
 
 export function useActiveJobs() {
@@ -25,6 +25,16 @@ export function useCancelJob() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (jobId: string) => cancelJob(jobId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["scheduler", "jobs"] })
+    },
+  })
+}
+
+export function useDismissJob() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (jobId: string) => dismissJob(jobId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["scheduler", "jobs"] })
     },
