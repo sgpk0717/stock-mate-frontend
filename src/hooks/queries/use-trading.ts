@@ -4,13 +4,16 @@ import {
   createTradingContext,
   deleteTradingContext,
   fetchAlphaRanking,
+  fetchAlphaRankingByFactor,
   fetchKISBalance,
   fetchKISOrders,
   fetchSessionDecisions,
   fetchSessionTrades,
+  fetchTradingAutoStart,
   fetchTradingContexts,
   fetchTradingSession,
   fetchTradingStatus,
+  setTradingAutoStart,
   startTrading,
   stopTrading,
 } from "@/api/trading"
@@ -99,6 +102,27 @@ export function useStopTrading() {
   })
 }
 
+// ── 자동매매 수동중단 ────────────────────────────────────
+
+export function useTradingAutoStart() {
+  return useQuery({
+    queryKey: ["trading-auto-start"],
+    queryFn: fetchTradingAutoStart,
+    refetchInterval: 10_000,
+  })
+}
+
+export function useSetTradingAutoStart() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (enabled: boolean) => setTradingAutoStart(enabled),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["trading-auto-start"] })
+      qc.invalidateQueries({ queryKey: ["trading-status"] })
+    },
+  })
+}
+
 // ── KIS 조회 ──────────────────────────────────────────────
 
 export function useKISBalance(isMock = true) {
@@ -121,6 +145,14 @@ export function useAlphaRanking(topN: number = 10) {
   return useQuery({
     queryKey: ["alpha-ranking", topN],
     queryFn: () => fetchAlphaRanking(topN),
+    refetchInterval: 5_000,
+  })
+}
+
+export function useAlphaRankingByFactor(topN: number = 10) {
+  return useQuery({
+    queryKey: ["alpha-ranking-by-factor", topN],
+    queryFn: () => fetchAlphaRankingByFactor(topN),
     refetchInterval: 5_000,
   })
 }

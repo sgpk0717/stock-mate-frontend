@@ -8,6 +8,7 @@ import AlphaRanking from "@/components/trading/AlphaRanking"
 import ContextPanel from "@/components/trading/ContextPanel"
 import DecisionMonitor from "@/components/trading/DecisionMonitor"
 import ModeSwitch from "@/components/trading/ModeSwitch"
+import ReplayPanel from "@/components/trading/ReplayPanel"
 import SessionCard from "@/components/trading/SessionCard"
 import TradeDailyHistory from "@/components/trading/TradeDailyHistory"
 import TradeJournalChart from "@/components/trading/TradeJournalChart"
@@ -42,6 +43,33 @@ function TradingPage() {
   // Get strategy interval from the selected session context
   const sessionInterval = activeSession?.mode === "paper" ? "5m" : "5m"
 
+  // #2: Paper 모드 요약 — 세션 데이터에서 현금/포지션 합산
+  const paperSummary = (() => {
+    if (mode !== "paper" || !sessions || sessions.length === 0) return null
+    let totalCash = 0
+    let totalPositions = 0
+    let totalTradeCount = 0
+    for (const s of sessions) {
+      const raw = s as unknown as Record<string, string>
+      totalCash += Number(raw.cash || 0)
+      totalTradeCount += Number(raw.trade_count || s.trade_count || 0)
+      try {
+        const pos = typeof s.positions === "string"
+          ? JSON.parse(s.positions as string)
+          : s.positions
+        if (pos && typeof pos === "object") {
+          totalPositions += Object.keys(pos).length
+        }
+      } catch { /* ignore */ }
+    }
+    // 포지션이 없으면 초기 자본 = 첫 세션의 cash
+    return {
+      cash: totalCash || 100_000_000,
+      positionCount: totalPositions,
+      tradeCount: totalTradeCount,
+    }
+  })()
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -54,28 +82,44 @@ function TradingPage() {
         <ModeSwitch mode={mode} onModeChange={setMode} />
       </div>
 
-      {/* KIS Summary Cards */}
-      {balance && (
-        <div data-tour="trading-summary" className="grid gap-3 md:grid-cols-4">
-          <SummaryCard
-            label="총 평가"
-            value={formatKRW(balance.account.total_eval)}
-          />
-          <SummaryCard
-            label={<Term>예수금</Term>}
-            value={formatKRW(balance.account.cash)}
-          />
-          <SummaryCard
-            label={<Term>손익</Term>}
-            value={formatKRW(balance.account.total_pnl)}
-            highlight={balance.account.total_pnl}
-          />
-          <SummaryCard
-            label="보유종목"
-            value={`${balance.positions.length}개`}
-          />
-        </div>
-      )}
+      {/* Summary Cards — Paper: 세션 데이터, Real: KIS API */}
+      <div data-tour="trading-summary" className="grid gap-3 md:grid-cols-4">
+        {mode === "paper" && paperSummary ? (
+          <>
+            <SummaryCard label="현금 잔액" value={formatKRW(paperSummary.cash)} />
+            <SummaryCard label="보유종목" value={`${paperSummary.positionCount}개`} />
+            <SummaryCard label="총 매매" value={`${paperSummary.tradeCount}건`} />
+            <SummaryCard label="실행 세션" value={`${sessions?.length ?? 0}개`} />
+          </>
+        ) : balance ? (
+          <>
+            <SummaryCard
+              label="총 평가"
+              value={formatKRW(balance.account.total_eval)}
+            />
+            <SummaryCard
+              label={<Term>예수금</Term>}
+              value={formatKRW(balance.account.cash)}
+            />
+            <SummaryCard
+              label={<Term>손익</Term>}
+              value={formatKRW(balance.account.total_pnl)}
+              highlight={balance.account.total_pnl}
+            />
+            <SummaryCard
+              label="보유종목"
+              value={`${balance.positions.length}개`}
+            />
+          </>
+        ) : (
+          <>
+            <SummaryCard label="총 평가" value="-" />
+            <SummaryCard label={<Term>예수금</Term>} value="-" />
+            <SummaryCard label={<Term>손익</Term>} value="-" />
+            <SummaryCard label="보유종목" value="-" />
+          </>
+        )}
+      </div>
 
       {/* Main Tabs */}
       <Tabs defaultValue="sessions">
@@ -84,6 +128,7 @@ function TradingPage() {
           <TabsTrigger value="ranking">알파 랭킹</TabsTrigger>
           <TabsTrigger value="contexts">전략 관리</TabsTrigger>
           <TabsTrigger value="history">매매 이력</TabsTrigger>
+          <TabsTrigger value="replay">리플레이</TabsTrigger>
         </TabsList>
 
         {/* ── Tab 1: Sessions ── */}
@@ -163,6 +208,11 @@ function TradingPage() {
         <TabsContent value="history">
           <TradeDailyHistory />
         </TabsContent>
+
+        {/* ── Tab 4: Replay ── */}
+        <TabsContent value="replay">
+          <ReplayPanel />
+        </TabsContent>
       </Tabs>
     </div>
   )
@@ -221,21 +271,24 @@ function SessionDetail({ sessionId, trades, interval, balance, tickSummary }: Se
         )}
       </TabsContent>
 
-      {/* Sub-tab: Positions */}
+      {/* Sub-tab: Positions — Paper: 세션 내부 포지션, Real: KIS API */}
       <TabsContent value="positions" className="pt-2">
-        {balance && balance.positions.length > 0 ? (
-          <PositionTable positions={balance.positions} />
-        ) : (
-          <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-            보유 포지션이 없습니다.
-          </div>
-        )}
+        <PaperPositionSection sessionId={sessionId} balance={balance} />
       </TabsContent>
     </Tabs>
   )
 }
 
 // ── Trade Record Table (extracted from original) ─────────────────
+
+// #17: step 코드 → 사용자 친화적 한국어 변환
+const STEP_LABELS: Record<string, string> = {
+  B1: "1차 매수",
+  B2: "추가 매수",
+  "S-HALF": "부분 익절",
+  "S-STOP": "손절 매도",
+  "S-TRAIL": "추적 매도",
+}
 
 function TradeRecordTable({
   trades,
@@ -268,7 +321,7 @@ function TradeRecordTable({
               {trades.map((t, i) => (
                 <tr key={i} className="border-b last:border-0">
                   <td className="py-1.5 tabular-nums text-muted-foreground">
-                    {new Date(t.timestamp).toLocaleTimeString("ko-KR")}
+                    {formatTradeTime(t.timestamp)}
                   </td>
                   <td className="py-1.5 font-medium">
                     {t.name ? (
@@ -291,15 +344,14 @@ function TradeRecordTable({
                           : "bg-blue-50 text-blue-600",
                       )}
                     >
-                      {t.side === "BUY" ? "매수" : "매도"}
-                      {t.step && ` (${t.step})`}
+                      {t.step ? (STEP_LABELS[t.step] ?? `${t.side === "BUY" ? "매수" : "매도"} (${t.step})`) : (t.side === "BUY" ? "매수" : "매도")}
                     </span>
                   </td>
                   <td className="py-1.5 text-right tabular-nums">
                     {t.qty.toLocaleString()}
                   </td>
                   <td className="py-1.5 text-right tabular-nums">
-                    {t.price.toLocaleString()}
+                    {Math.round(t.price).toLocaleString()}
                   </td>
                   <td className="py-1.5 text-right tabular-nums">
                     {t.pnl_amount != null ? (
@@ -336,7 +388,7 @@ function TradeRecordTable({
                       {t.success ? "성공" : "실패"}
                     </span>
                   </td>
-                  <td className="py-1.5 max-w-[140px] truncate text-muted-foreground">
+                  <td className="py-1.5 max-w-[200px] text-muted-foreground">
                     {t.reason || "-"}
                   </td>
                 </tr>
@@ -346,6 +398,80 @@ function TradeRecordTable({
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+// #3: 시간 보정 — UTC+00:00 타임스탬프를 KST 봉 시각으로 변환
+function formatTradeTime(ts: string): string {
+  if (!ts) return "-"
+  try {
+    const d = new Date(ts)
+    // 타임존 없는 ISO 문자열(캔들 dt)이 UTC로 해석되는 문제 보정:
+    // 장중 시간(09:00~15:30 KST)인지 확인하고, 범위 밖이면 UTC→KST 보정이 필요한 것으로 판단
+    const kstHour = d.getHours() // 브라우저 로컬(KST) 기준
+    if (kstHour >= 16 || kstHour < 9) {
+      // 오후 4시 이후 or 오전 9시 이전이면 UTC 값이 KST로 잘못 해석된 것
+      // 원본이 UTC 봉 시각이므로 KST 기준 시간만 추출
+      // 예: UTC 00:35 → KST 09:35, UTC 09:35(잘못된 KST 해석) → 실제 의도 09:35
+      // 시간대 정보 제거 후 재파싱
+      const noTz = ts.replace(/[+-]\d{2}:\d{2}$/, "").replace("Z", "")
+      const naive = new Date(noTz + "+09:00")
+      return naive.toLocaleTimeString("ko-KR")
+    }
+    return d.toLocaleTimeString("ko-KR")
+  } catch {
+    return ts
+  }
+}
+
+// ── Paper Position Section (세션 내부 포지션 or KIS API) ─────────
+
+function PaperPositionSection({
+  sessionId,
+  balance,
+}: {
+  sessionId: string
+  balance: import("@/types").KISBalance | undefined
+}) {
+  const { data: sessions } = useTradingStatus()
+  const session = sessions?.find((s) => s.id === sessionId) as Record<string, unknown> | undefined
+
+  // Paper 모드: 세션 positions 파싱
+  const paperPositions = (() => {
+    if (!session?.positions) return []
+    try {
+      const raw = typeof session.positions === "string"
+        ? JSON.parse(session.positions as string)
+        : session.positions
+      if (!raw || typeof raw !== "object") return []
+      return Object.entries(raw as Record<string, Record<string, unknown>>).map(([symbol, pos]) => ({
+        symbol,
+        name: String(pos.name || symbol),
+        qty: Number(pos.qty || 0),
+        avg_price: Math.round(Number(pos.avg_price || 0)),
+        current_price: Math.round(Number(pos.current_price || pos.avg_price || 0)),
+        pnl: 0,
+        pnl_pct: 0,
+      }))
+    } catch {
+      return []
+    }
+  })()
+
+  // Paper 모드에서 포지션이 있으면 그걸 표시
+  if (paperPositions.length > 0) {
+    return <PositionTable positions={paperPositions} />
+  }
+
+  // Real 모드: KIS API 사용
+  if (balance && balance.positions.length > 0) {
+    return <PositionTable positions={balance.positions} />
+  }
+
+  return (
+    <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+      보유 포지션이 없습니다.
+    </div>
   )
 }
 

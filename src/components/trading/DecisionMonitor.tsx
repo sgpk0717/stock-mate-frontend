@@ -60,12 +60,52 @@ interface Props {
 
 export default function DecisionMonitor({ sessionId, tickSummary }: Props) {
   const [actionFilter, setActionFilter] = useState("")
+  const [expandedRow, setExpandedRow] = useState<number | null>(null)
   const { data: decisions = [], isLoading } = useSessionDecisions(
     sessionId,
     { action: actionFilter || undefined, limit: 100 },
   )
 
   const ts = tickSummary
+
+  // #1: positions를 JSON 파싱하여 보유 종목 수 산출
+  const positionCount = (() => {
+    if (!ts?.positions) return "-"
+    try {
+      const parsed = JSON.parse(ts.positions)
+      if (typeof parsed === "object" && parsed !== null) {
+        return String(Object.keys(parsed).length)
+      }
+    } catch {
+      // 숫자 문자열이면 그대로 사용
+      if (/^\d+$/.test(ts.positions)) return ts.positions
+    }
+    return ts?.hold_count ?? "-"
+  })()
+
+  // #19: status_detail 자연어 변환
+  const statusMessage = (() => {
+    if (!ts?.status_detail) return null
+    const raw = ts.status_detail
+    const match = raw.match(/no_bars\(skip=(\d+),err=(\d+),no_today=(\d+)\)/)
+    if (match) {
+      const [, skip, err, noToday] = match
+      const parts: string[] = []
+      if (Number(noToday) > 0) parts.push(`${noToday}종목 오늘 데이터 없음`)
+      if (Number(skip) > 0) parts.push(`${skip}건 스킵`)
+      if (Number(err) > 0) parts.push(`${err}건 오류`)
+      return parts.join(" / ")
+    }
+    return raw
+  })()
+
+  // 현금 포맷
+  const cashDisplay = (() => {
+    if (!ts?.cash) return "-"
+    const n = Number(ts.cash)
+    if (isNaN(n)) return ts.cash
+    return n.toLocaleString("ko-KR")
+  })()
 
   return (
     <div className="space-y-4">
@@ -88,14 +128,43 @@ export default function DecisionMonitor({ sessionId, tickSummary }: Props) {
         />
         <StatCard
           label="보유"
-          value={`${ts?.positions ?? "-"}/${ts?.max_positions ?? "-"}`}
+          value={`${positionCount}/${ts?.max_positions ?? "-"}`}
         />
-        <StatCard label="현금" value={ts?.cash ?? "-"} />
+        <StatCard label="현금" value={cashDisplay} />
       </div>
 
-      {ts?.status_detail && (
-        <p className="text-xs text-gray-500">{ts.status_detail}</p>
+      {statusMessage && (
+        <p className="text-xs text-amber-600">{statusMessage}</p>
       )}
+
+      {/* #14: 실행된 매매 판단 고정 표시 (BUY/SELL만 필터) */}
+      {(() => {
+        const executed = decisions.filter(
+          (d: DecisionLog) => d.action === "BUY" || d.action === "SELL" ||
+            d.action === "RISK_STOP" || d.action === "RISK_TRAIL" ||
+            d.action === "PARTIAL_EXIT" || d.action === "SCALE_IN"
+        )
+        if (executed.length === 0) return null
+        return (
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <p className="mb-2 text-xs font-semibold text-primary">실행된 매매 판단 ({executed.length}건)</p>
+            <div className="space-y-1">
+              {executed.slice(-10).reverse().map((d: DecisionLog, i: number) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span className="tabular-nums text-gray-500 w-16">
+                    {d.timestamp ? new Date(d.timestamp).toLocaleTimeString("ko-KR") : "-"}
+                  </span>
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${ACTION_COLORS[d.action] ?? ""}`}>
+                    {ACTION_LABELS[d.action] ?? d.action}
+                  </span>
+                  <span className="font-medium">{d.name || d.symbol}</span>
+                  <span className="flex-1 truncate text-gray-500">{d.reason}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* 필터 */}
       <div className="flex items-center gap-2">
@@ -143,33 +212,63 @@ export default function DecisionMonitor({ sessionId, tickSummary }: Props) {
               decisions
                 .slice()
                 .reverse()
-                .map((d: DecisionLog, i: number) => (
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="whitespace-nowrap px-3 py-1.5 tabular-nums text-gray-500">
-                      {d.timestamp
-                        ? new Date(d.timestamp).toLocaleTimeString("ko-KR")
-                        : "-"}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-1.5">
-                      <span className="font-medium">{d.name || d.symbol}</span>
-                      {d.name && (
-                        <span className="ml-1 text-gray-400">{d.symbol}</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-1.5">
-                      <span
-                        className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                          ACTION_COLORS[d.action] ?? "text-gray-500 bg-gray-50"
-                        }`}
-                      >
-                        {ACTION_LABELS[d.action] ?? d.action}
-                      </span>
-                    </td>
-                    <td className="max-w-xs truncate px-3 py-1.5 text-gray-600">
-                      {d.reason}
-                    </td>
-                  </tr>
-                ))
+                .map((d: DecisionLog, i: number) => {
+                  const isExpanded = expandedRow === i
+                  return (
+                    <tr
+                      key={i}
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => setExpandedRow(isExpanded ? null : i)}
+                    >
+                      <td className="whitespace-nowrap px-3 py-1.5 tabular-nums text-gray-500 align-top">
+                        {d.timestamp
+                          ? new Date(d.timestamp).toLocaleTimeString("ko-KR")
+                          : "-"}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-1.5 align-top">
+                        <span className="font-medium">{d.name || d.symbol}</span>
+                        {d.name && (
+                          <span className="ml-1 text-gray-400">{d.symbol}</span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-1.5 align-top">
+                        <span
+                          className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                            ACTION_COLORS[d.action] ?? "text-gray-500 bg-gray-50"
+                          }`}
+                        >
+                          {ACTION_LABELS[d.action] ?? d.action}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1.5 text-gray-600 align-top">
+                        <div className={isExpanded ? "" : "max-w-xs truncate"}>
+                          {d.reason}
+                        </div>
+                        {isExpanded && d.conditions && (
+                          <div className="mt-1.5 space-y-1 rounded bg-gray-50 p-2 text-[10px]">
+                            {(d.conditions as Record<string, unknown>)?.buy_conditions &&
+                              (
+                                (d.conditions as Record<string, unknown>)
+                                  .buy_conditions as Array<Record<string, unknown>>
+                              )?.map(
+                                (c: Record<string, unknown>, ci: number) => (
+                                  <div key={ci} className={c.met ? "text-red-600" : "text-gray-400"}>
+                                    {String(c.indicator)} {String(c.op)} {String(c.threshold)} (실제: {String(c.actual)}) {c.met ? "충족" : "미충족"}
+                                  </div>
+                                ),
+                              )}
+                            {d.sizing && (
+                              <div className="mt-1 border-t pt-1 text-gray-500">
+                                배분: {Number((d.sizing as Record<string, number>)?.alloc_cash_limited ?? 0).toLocaleString()}원
+                                / 수량: {(d.sizing as Record<string, number>)?.qty ?? "-"}주
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })
             )}
           </tbody>
         </table>

@@ -130,7 +130,7 @@ export default function UniverseReplay() {
     })
 
     Promise.all([
-      fetch(`${API_URL}/alpha/factors?limit=200&sort_by=ic_mean`).then((r) => r.json()),
+      fetch(`${API_URL}/alpha/factors?limit=200&sort_by=ic_mean&interval=${interval}`).then((r) => r.json()),
       // 활성 세션에서 사용 중인 팩터 ID 조회
       fetch(`${API_URL}/trading/status`).then((r) => r.json()).catch(() => []),
     ]).then(async ([factorData, sessions]) => {
@@ -186,10 +186,10 @@ export default function UniverseReplay() {
 
       if (merged.length > 0) setFactors(merged)
     }).catch(() => {})
-  }, [])
+  }, [interval])
 
   // 인터벌별 팩터 필터링
-  const filteredFactors = factors.filter((f) => f.interval === interval)
+  const filteredFactors = factors
 
   // 팩터 선택 시 유니버스 자동 세팅 (팩터 발굴 시 사용한 유니버스)
   const selectedFactor = factors.find((f) => f.id === factorId)

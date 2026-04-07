@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useWorkflowHistory } from "@/hooks/queries/use-workflow"
-import { useTradingDayDetail } from "@/hooks/queries/use-trading"
+import { useTradingDayDetail, useTradingStatus } from "@/hooks/queries/use-trading"
 import { formatKRW } from "@/lib/format"
 import type { WorkflowRun } from "@/types/workflow"
 
@@ -257,6 +257,17 @@ export default function TradeDailyHistory() {
   const { data: history, isLoading } = useWorkflowHistory(30)
   const [expandedDate, setExpandedDate] = useState<string | null>(null)
 
+  // #12: 실시간 세션 데이터를 가져와서 오늘자 trade_count 보정
+  const { data: sessions } = useTradingStatus()
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayTradeCount = (sessions ?? []).reduce(
+    (sum, s) => sum + (s.trade_count || 0), 0
+  )
+  const todayFactors = (sessions ?? [])
+    .map(s => s.strategy_name)
+    .filter(Boolean)
+    .filter((v, i, a) => a.indexOf(v) === i)
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12 text-muted-foreground">
@@ -265,9 +276,17 @@ export default function TradeDailyHistory() {
     )
   }
 
-  const runs = (history ?? []).filter(
-    (r: WorkflowRun) => r.trade_count > 0 || r.status === "COMPLETED" || r.status === "MINING"
-  )
+  // #12: 오늘자 run의 trade_count가 0이면 실시간 세션 데이터로 보정
+  const runs = (history ?? [])
+    .map((r: WorkflowRun) => {
+      if (r.date === todayStr && (r.trade_count === 0 || r.trade_count == null) && todayTradeCount > 0) {
+        return { ...r, trade_count: todayTradeCount }
+      }
+      return r
+    })
+    .filter(
+      (r: WorkflowRun) => r.trade_count > 0 || r.status === "COMPLETED" || r.status === "MINING"
+    )
 
   if (runs.length === 0) {
     return (

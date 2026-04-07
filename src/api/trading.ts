@@ -72,6 +72,18 @@ export async function fetchTradingStatus(): Promise<TradingSession[]> {
   return apiFetch<TradingSession[]>("/trading/status")
 }
 
+// ── 자동매매 수동중단 ──
+
+export async function fetchTradingAutoStart(): Promise<{ user_stopped: boolean }> {
+  return apiFetch<{ user_stopped: boolean }>("/trading/auto-start")
+}
+
+export async function setTradingAutoStart(enabled: boolean): Promise<{ user_stopped: boolean }> {
+  return apiFetch<{ user_stopped: boolean }>(`/trading/auto-start?enabled=${enabled}`, {
+    method: "PUT",
+  })
+}
+
 export async function fetchTradingSession(
   sessionId: string,
 ): Promise<TradingSession> {
@@ -123,6 +135,27 @@ export async function fetchAlphaRanking(
   topN: number = 10,
 ): Promise<AlphaRanking> {
   return apiFetch<AlphaRanking>(`/trading/alpha-ranking?top_n=${topN}`)
+}
+
+export interface FactorRanking {
+  factor_id: string
+  factor_name: string
+  interval: string
+  buy_candidates: AlphaCandidate[]
+  sell_candidates: AlphaCandidate[]
+  scored_count: number
+}
+
+export interface AlphaRankingByFactor {
+  factors: FactorRanking[]
+  updated_at: string
+  version: number
+}
+
+export async function fetchAlphaRankingByFactor(
+  topN: number = 10,
+): Promise<AlphaRankingByFactor> {
+  return apiFetch<AlphaRankingByFactor>(`/trading/alpha-ranking/by-factor?top_n=${topN}`)
 }
 
 // ── 의사결정 로그 (모니터링) ────────────────────────────

@@ -15,9 +15,28 @@ const STATUS_LABELS: Record<string, string> = {
   error: "오류",
 }
 
+function getDisplayStatus(session: TradingSession): { label: string; color: string; dot: string } {
+  const isMarketHours = (session as any).is_market_hours ?? true
+
+  if (session.status === "running" && !isMarketHours) {
+    return { label: "장 마감 (유휴)", color: "text-amber-600", dot: "bg-amber-400" }
+  }
+  if (session.status === "running") {
+    return { label: "실행 중", color: "text-green-600", dot: "bg-green-500" }
+  }
+  if (session.status === "stopped") {
+    return { label: "중지됨", color: "text-muted-foreground", dot: "bg-gray-400" }
+  }
+  if (session.status === "error") {
+    return { label: "오류", color: "text-destructive", dot: "bg-destructive" }
+  }
+  return { label: session.status, color: "text-muted-foreground", dot: "bg-gray-400" }
+}
+
 function SessionCard({ session, selected, onSelect }: SessionCardProps) {
   const stopMutation = useStopTrading()
   const positionCount = Object.keys(session.positions).length
+  const display = getDisplayStatus(session)
 
   return (
     <div
@@ -34,27 +53,21 @@ function SessionCard({ session, selected, onSelect }: SessionCardProps) {
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span
-            className={cn(
-              "inline-block h-2 w-2 shrink-0 rounded-full",
-              session.status === "running" && "bg-green-500",
-              session.status === "stopped" && "bg-gray-400",
-              session.status === "error" && "bg-destructive",
-            )}
-          />
+          <span className={cn("inline-block h-2 w-2 shrink-0 rounded-full", display.dot)} />
           <span className="truncate text-sm font-medium">
             {session.strategy_name || "전략"}
           </span>
+          {/* interval 배지 */}
+          {(() => {
+            const raw = session as unknown as Record<string, unknown>
+            const interval = (raw.interval as string) || (raw.strategy_interval as string) || ""
+            if (interval === "1d") return <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-semibold text-amber-700">일봉</span>
+            if (interval === "5m") return <span className="shrink-0 rounded bg-blue-100 px-1 py-0.5 text-[9px] font-semibold text-blue-700">5분봉</span>
+            return null
+          })()}
         </div>
-        <span
-          className={cn(
-            "shrink-0 text-[10px] font-medium",
-            session.status === "running" && "text-green-600",
-            session.status === "stopped" && "text-muted-foreground",
-            session.status === "error" && "text-destructive",
-          )}
-        >
-          {STATUS_LABELS[session.status] ?? session.status}
+        <span className={cn("shrink-0 text-[10px] font-medium", display.color)}>
+          {display.label}
         </span>
       </div>
 
